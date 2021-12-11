@@ -9,13 +9,15 @@ If you're installing directly off of the `develop` branch, you'll need to instal
 
 You'll need to install the following dependencies in order to run and use Jexactyl:
 ***
-PHP `8.0` with the following extensions: `cli`, `openssl`, `gd`, `mysql`, `PDO`, `mbstring`, `tokenizer`, `bcmath`, `xml` or `dom`, `curl`, `zip`, `fpm`. - FPM is only needed if you're using NGINX as a webserver.
+PHP `8.0` with the following extensions: `cli`, `openssl`, `gd`, `mysql`, `PDO`, `mbstring`, `tokenizer`, `bcmath`, `xml`, `curl`, `zip`, and `fpm`. - fpm is only needed if you're using NGINX as a webserver.
 
 MySQL `5.7.22` or higher (MySQL `8` recommended) or MariaDB `10.2` or higher.
 
 A webserver (`NGINX` is preferred.)
 
 `curl`, `tar`, `unzip`, `git` and `composer` v2.
+
+`NodeJS` v14 or higher, with `npm` and `yarn` installed.
 ***
 
 ## Example Dependency Installation
@@ -33,8 +35,13 @@ apt -y install software-properties-common curl apt-transport-https ca-certificat
 LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 add-apt-repository -y ppa:chris-lea/redis-server
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+
 apt update
 apt -y install php8.0 php8.0-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} mariadb-server nginx tar unzip git redis-server
 curl -sS https://getcomposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
+
+curl -sL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+apt install -y nodejs
+npm i -g yarn
 ```
 
