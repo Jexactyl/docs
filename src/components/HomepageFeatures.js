@@ -4,32 +4,32 @@ import styles from './HomepageFeatures.module.css';
 
 const FeatureList = [
   {
-    title: 'Easy to Use',
+    title: 'Efficient.',
     Svg: require('../../static/img/undraw_docusaurus_mountain.svg').default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Jexactyl is a streamlined version of Pterodactyl Panel 
+        with advanced features.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
+    title: 'Fast.',
     Svg: require('../../static/img/undraw_docusaurus_tree.svg').default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Jexactyl takes advantage of speedy libraries in order to 
+        provide a blazing-fast experience to all users.
       </>
     ),
   },
   {
-    title: 'Powered by React',
+    title: 'Reliable.',
     Svg: require('../../static/img/undraw_docusaurus_react.svg').default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Jexactyl is designed to be reliable, stable and powerful
+        while incorporating new features.
       </>
     ),
   },
