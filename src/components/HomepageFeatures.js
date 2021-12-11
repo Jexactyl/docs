@@ -5,7 +5,7 @@ import styles from './HomepageFeatures.module.css';
 const FeatureList = [
   {
     title: 'Efficient.',
-    Svg: require('../../static/img/undraw_docusaurus_mountain.svg').default,
+    Svg: require('../../static/img/efficient.svg').default,
     description: (
       <>
         Jexactyl is a streamlined version of Pterodactyl Panel 
@@ -15,7 +15,7 @@ const FeatureList = [
   },
   {
     title: 'Fast.',
-    Svg: require('../../static/img/undraw_docusaurus_tree.svg').default,
+    Svg: require('../../static/img/fast.svg').default,
     description: (
       <>
         Jexactyl takes advantage of speedy libraries in order to 
@@ -25,7 +25,7 @@ const FeatureList = [
   },
   {
     title: 'Reliable.',
-    Svg: require('../../static/img/undraw_docusaurus_react.svg').default,
+    Svg: require('../../static/img/reliable.svg').default,
     description: (
       <>
         Jexactyl is designed to be reliable, stable and powerful
