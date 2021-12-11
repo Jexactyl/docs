@@ -6,7 +6,12 @@ sidebar_position: 4
 ***
 In order for the Panel to store and send data, we'll need a database.
 This is where all the information about servers, users and functions go.
-In this case, we're using MySQL - although Amazon S3 is also an option.
+In this case, we're using MySQL - although Amazon Lambda and other
+database services are also viable options. 
+:::info Recommendations for your database
+One thing you could do to further secure and scale the Panel is to have a 
+separate VPS or server for databasing. This could be beneficial down the 
+line for things like multi-cluster deployments and load balancing databases.
 ```sql
 mysql -u root -p
 
