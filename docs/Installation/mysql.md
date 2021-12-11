@@ -12,6 +12,7 @@ database services are also viable options.
 One thing you could do to further secure and scale the Panel is to have a 
 separate VPS or server for databasing. This could be beneficial down the 
 line for things like multi-cluster deployments and load balancing databases.
+:::
 ```sql
 mysql -u root -p
 
