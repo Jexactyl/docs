@@ -2,34 +2,23 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# Welcome to Jexactyl!
 
-Let's discover **Docusaurus in less than 5 minutes**.
+This is designed to be a simple, informative guide for everything Jexactyl.
+From installing the software to helping contribute, you'll find an easy-to-read
+guide right here.
 
-## Getting Started
+## What is this software?
 
-Get started by **creating a new site**.
+Jexactyl, also known as **Jxctl**, is a modern, fast and feature-rich fork of 
+[Pterodactyl Panel](https://github.com/pterodactyl/panel), which is built in
+React Typescript and PHP 8. Jexactyl aims to be a fork of this software
+which provides more features and better documentation along with personal
+support all for free.
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+## Want to dive in?
 
-## Generate a new site
+If you're a new user, you can start with our [Installation Guides](http://localhost:3000/docs/placeholder).
 
-Generate a new Docusaurus site using the **classic template**:
+If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](http://localhost:3000/docs/placeholder).
 
-```shell
-npm init docusaurus@latest my-website classic
-```
-
-## Start your site
-
-Run the development server:
-
-```shell
-cd my-website
-
-npx docusaurus start
-```
-
-Your site starts at `http://localhost:3000`.
-
-Open `docs/intro.md` and edit some lines: the site **reloads automatically** and displays your changes.
