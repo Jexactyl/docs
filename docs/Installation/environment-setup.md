@@ -3,7 +3,7 @@ sidebar_position: 5
 ---
 
 # Environment Setup
-
+***
 ## Getting started
 We'll need to start by copying over the default settings file, called `.env.example`. We'll want
 this to be called `.env`, so it's just a case of copying the file over in order to set up the Panel

@@ -3,7 +3,7 @@ sidebar_position: 1
 ---
 
 # Install Dependencies
-
+***
 Let's get started by installing our dependencies we'll need for this project.
 If you're installing directly off of the `develop` branch, you'll need to install our [modification dependencies](http://localhost:3000/modification/dependencies).
 

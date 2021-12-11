@@ -3,7 +3,7 @@ sidebar_position: 2
 ---
 
 # Download Files
-
+***
 The first step in this process is to create the folder where the 
 panel will live and then move ourselves into that newly created folder. 
 Below is an example of how to perform this operation.

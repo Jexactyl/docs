@@ -3,7 +3,7 @@ sidebar_position: 3
 ---
 
 # MySQL Setup
-
+***
 In order for the Panel to store and send data, we'll need a database.
 This is where all the information about servers, users and functions go.
 In this case, we're using MySQL - although Amazon S3 is also an option.

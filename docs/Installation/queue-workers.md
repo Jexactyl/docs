@@ -3,7 +3,7 @@ sidebar_position: 6
 ---
 
 # Queue Workers
-
+***
 ## Crontab
 The first thing we need to do is create a new cronjob that runs every minute to process specific Jexactyl tasks, such as session cleanup and sending scheduled tasks to daemons. 
 

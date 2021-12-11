@@ -3,7 +3,7 @@ sidebar_position: 1
 ---
 
 # Welcome to Jexactyl!
-
+***
 This is designed to be a simple, informative guide for everything Jexactyl.
 From installing the software to helping contribute, you'll find an easy-to-read
 guide right here.
