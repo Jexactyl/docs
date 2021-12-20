@@ -4,7 +4,8 @@ sidebar_position: 4
 
 # Environment Setup
 ***
-## Getting started
+
+## Configuration Files
 We'll need to start by copying over the default settings file, called `.env.example`. We'll want
 this to be called `.env`, so it's just a case of copying the file over in order to set up the Panel
 how you want it.
@@ -13,6 +14,19 @@ how you want it.
 cp .env.example .env
 ```
 
+We also want to copy over the `settings.json.example` file into a file called `settings.json`. 
+This is where configurations for Jexactyl-specific features will reside, such as user registration.
+If you want to just copy over the file and make no changes to the settings (all modules are enabled by default), 
+run the command below:
+
+```bash
+cp settings.json.example settings.json
+```
+
+However, if you want to make changes to the file, you'll have to rebuild the panel. 
+Documentation for how to build Jexactyl can be found in the Modifications category.
+
+## Depdendency installation
 After this, we'll need to install Composer dependencies - which will allow the PHP code in our project
 (such as the backend and admin-side) to run properly.
 
