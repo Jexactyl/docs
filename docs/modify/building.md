@@ -1,12 +1,9 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 # Building Jexactyl
 ***
-:::warning This software is in development
-Future releases will not have to be built on your machine.
-:::
 
 :::info Check dependency installations
 Make sure that NodeJS along with NPM and Yarn is installed.
@@ -28,7 +25,7 @@ yarn run build:production
 ```
 :::warning This process will take some time
 Building the Panel will take a long time or fail on low end hardware.
-If your server is not able to build Jexactyl currently, please wait for a release
+If your server is not able to build Jexactyl currently, please download a release
 which is pre-built from our [GitHub](https://github.com/jexactyl/panel).
 :::
 When this process completes, the Panel is built and packed for production. Please note
