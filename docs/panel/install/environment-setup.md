@@ -68,11 +68,11 @@ In order for the webserver you're using to access the Panel files, we'll need to
 with the `chown` command. Here's how to do this for all types of webservers:
 ```bash
 # If using NGINX or Apache (not on CentOS):
-chown -R www-data:www-data /var/www/pterodactyl/*
+chown -R www-data:www-data /var/www/jexactyl/*
 
 # If using NGINX on CentOS:
-chown -R nginx:nginx /var/www/pterodactyl/*
+chown -R nginx:nginx /var/www/jexactyl/*
 
 # If using Apache on CentOS:
-chown -R apache:apache /var/www/pterodactyl/*
+chown -R apache:apache /var/www/jexactyl/*
 ```
