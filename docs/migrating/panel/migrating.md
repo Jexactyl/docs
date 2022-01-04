@@ -69,6 +69,7 @@ version of Jexactyl. Running the two commands below will update
 the schema and ensure the default eggs we ship are up to date 
 (and add any new ones we might have).
 ```bash
+php artisan migrate:rollback
 php artisan migrate --seed --force
 ```
 
