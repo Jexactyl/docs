@@ -5,6 +5,11 @@ sidebar_position: 1
 # Introduction
 ***
 
+:::warning CHECK YOUR JEXACTYL VERSION!
+If you're running a version before v2.x, these steps won't work as intended.
+Please refer to the support Discord if you need any assistance.
+:::
+
 Upgrading Jexactyl is a relatively simple and painless process when done correctly.
 Before you start, make sure you:
 - Update PHP to `>= 8.x`
