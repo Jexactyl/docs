@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Introduction
+# Automatic update
 ***
 
 :::warning CHECK YOUR JEXACTYL VERSION!
