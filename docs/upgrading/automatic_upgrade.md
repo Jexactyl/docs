@@ -7,7 +7,7 @@ sidebar_position: 1
 
 :::warning CHECK YOUR JEXACTYL VERSION!
 If you're running a version before v2.x, these steps won't work as intended.
-Please refer to the support Discord if you need any assistance, or you can also try the [manual upgrade](../manual_upgrade.md) instead.
+Please refer to the support Discord if you need any assistance, or you can also try the manual upgrade instead.
 :::
 
 You may have chosen to do the automatic upgrade, if so, we again, tell you to check your panel version. The automatic upgrade command on a Jexactyl version below v2.x **will not** work as intented. If you have checked, and your panel version is v2.x or higher, please proceed.
