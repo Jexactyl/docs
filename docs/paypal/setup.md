@@ -15,6 +15,13 @@ To generate REST API credentials for and live environments:
 * Make sure you're on the 'Live' tab so you're not using development credentials.
 * Under the App Name column, select Default Application, which PayPal creates with a new Developer Dashboard account. Select Create App if you don't see the default app.
 
+## Set callback URL
+Before you do anything else, you'll need to set your callback URL for your Rest API in PayPal.
+If your panel was hosted on the domain `panel.example.com`, your callback URL would be:
+```
+https://panel.example.com/api/client/callback/success
+```
+
 ## Add credentials to Jexactyl
 
 Navigate to Admin > Credits System > Payments.
