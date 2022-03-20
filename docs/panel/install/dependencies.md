@@ -36,7 +36,7 @@ LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
 apt update
-apt -y install php8.0 php8.0-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} mariadb-server nginx tar unzip git
+apt -y install php8.0 php8.0-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} mariadb-server nginx tar unzip git redis-server
 curl -sS https://getcomposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
 
 curl -sL https://deb.nodesource.com/setup_16.x | sudo -E bash -
