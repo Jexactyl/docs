@@ -62,6 +62,9 @@ After the new files have been downloaded, you'll need to update the PHP Composer
 that run this Panel. To do so, use `composer` to update the pakcages:
 
 ```bash
+# Temporary fix for errors.
+composer require asbiin/laravel-webauthn
+
 composer install --no-dev --optimize-autoloader
 ```
 
@@ -72,7 +75,7 @@ composer install --no-dev --optimize-autoloader
 You'll also want to clear the Panel's cache so that the new site will appear correctly.
 
 ```bash
-php artisan p:optimize:clear
+php artisan optimize:clear
 ```
 
 ***
