@@ -17,6 +17,6 @@ If you're a new user, you can start with our [Installation Guides](/docs/getting
 If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](/).
 
 ## Screenshots
-![Storefront](images/store.png)
-![Console](images/console.png)
-![Admin Settings](images/admin.png)
+![Storefront](public/images/store.png)
+![Console](public/images/console.png)
+![Admin Settings](public/images/admin.png)
