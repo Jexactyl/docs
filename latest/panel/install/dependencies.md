@@ -17,7 +17,7 @@ PHP `8.1` with the extensions:
 - `zip`
 - `fpm`.
 
-MariaDB `10.2` or higher.
+MariaDB `10.2` or higher, with `redis-server`.
 
 A webserver (`NGINX` is preferred.)
 
@@ -37,6 +37,6 @@ LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
 apt update
-apt -y install php8.1 php8.1-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} mariadb-server nginx tar unzip git
+apt -y install php8.1 php8.1-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} mariadb-server nginx tar unzip git redis-server
 curl -sS https://getcomposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
 ```
