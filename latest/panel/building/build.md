@@ -3,6 +3,8 @@
 !> Please note that we dont provide support to modified installs
 
 ## Instal NodeJS
+You can skip this proccess if you have it already installed.
+
 ### Ubuntu/Debian
 curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 apt install -y nodejs
