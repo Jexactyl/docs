@@ -12,9 +12,10 @@
         * [NGINX without SSL](latest/panel/webservers/nginx.md)
         * [Apache with SSL](latest/panel/webservers/apache-ssl.md)
         * [Apache without SSL](latest/panel/webservers/apache.md)
-    * `Building`
-        * [Building](latest/panel/building/build.md)
-
+    * `Building panel assets`
+        * [Installing NodeJS](latest/panel/building/build?id=instal-nodejs)
+        * [Installing yarn](latest/panel/building/build?id=install-yarn)
+        * [Building](latest/panel/building/build?id=build-the-panel)
 * **Daemon (v1.x)**
     * [Installation](latest/daemon/install.md)
 
