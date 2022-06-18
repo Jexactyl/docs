@@ -12,6 +12,8 @@
         * [NGINX without SSL](latest/panel/webservers/nginx.md)
         * [Apache with SSL](latest/panel/webservers/apache-ssl.md)
         * [Apache without SSL](latest/panel/webservers/apache.md)
+    * `Building`
+        * [Building](latest/panel/building/build.md)
 
 * **Daemon (v1.x)**
     * [Installation](latest/daemon/install.md)
