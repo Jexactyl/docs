@@ -16,6 +16,12 @@
 * **Daemon (v1.x)**
     * [Installation](latest/daemon/install.md)
 
+***
+
 * **Migration**
     * [From Pterodactyl (v1.x)](latest/migration/pterodactyl.md)
     * [From Jexactyl (v2.x)](latest/migration/jexactyl.md)
+
+* **Modification**
+    * [Install build tools](latest/build/install.md)
+    * [Build frontend files](latest/build/building.md)
