@@ -25,3 +25,6 @@
 * **Modification**
     * [Install build tools](latest/build/install.md)
     * [Build frontend files](latest/build/building.md)
+
+* **Payment Gateways**
+    * [Setting up PayPal](latest/payments/paypal.md)
