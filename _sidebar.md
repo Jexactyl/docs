@@ -28,3 +28,4 @@
 
 * **Payment Gateways**
     * [Setting up PayPal](latest/payments/paypal.md)
+    * [Setting up Stripe](latest/payments/stripe.md)
