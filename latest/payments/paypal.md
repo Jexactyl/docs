@@ -22,6 +22,8 @@ for use with Jexactyl.
 ![image](https://www.knowband.com/blog/wp-content/uploads/2019/02/2.gif)
 
 ### 2. Head to the dashboard and create a new App
+!> Make sure that the toggle at the top of the page is set to LIVE mode, not Sandbox.
+
 ![image](https://www.knowband.com/blog/wp-content/uploads/2019/02/5.png)
 
 ### 3. Create your PayPal App
