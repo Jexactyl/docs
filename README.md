@@ -12,9 +12,9 @@ to make this software easier more advanced while also being nicer to use.
 - Server Renewal system
 
 ## Ready to get started?
-If you're a new user, you can start with our [Installation Guides](/docs/getting-started.md).
+If you're a new user, you can start with our [Installation Guides](https://docs.jexactyl.com/#/latest/panel/install/dependencies).
 
-If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](/).
+If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](https://docs.jexactyl.com/#/latest/build/install).
 
 ## Screenshots
 ![Storefront](public/images/store.png)
