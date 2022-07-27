@@ -31,7 +31,9 @@ your operating system's package manager for how to install the dependencies.
 
 ```bash
 apt -y install software-properties-common curl apt-transport-https ca-certificates gnupg
+
 LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
+add-apt-repository ppa:redislabs/redis -y
 
 # The command below is not needed if you are using Ubuntu 22.04 or higher.
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
