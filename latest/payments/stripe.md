@@ -32,11 +32,17 @@ head to 'API keys' and generate a new API key.
 
 ![image](../../public/images/stripe-apikey.jpg)
 
-### 3. Create Webhook Secret
+### 3. Create Webhook
 
 After creating the API key, you&apos;ll need to create a `webhook` which will
 allow Stripe events to be processed via Jexactyl. Head to 'Webhooks' on the sidebar
-and generate a new webhook, using these two permissions:
+and generate a new webhook.
+
+![image](../../public/images/stripe-webhook.png)
+
+In the `Endpoint URL` field enter this: `https://<your.panel.tld>/stripe/listen`. 
+
+Then add the following events:
 
 ![image](../../public/images/stripe-perms.jpg)
 
