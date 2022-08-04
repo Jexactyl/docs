@@ -22,6 +22,9 @@
     * [From Pterodactyl (v1.x)](latest/migration/pterodactyl.md)
     * [From Jexactyl (v2.x)](latest/migration/jexactyl.md)
 
+* **Discord OAuth**
+    * [Configure Discord OAuth](latest/discord/oauth.md)
+
 * **Modification**
     * [Install build tools](latest/build/install.md)
     * [Build frontend files](latest/build/building.md)
