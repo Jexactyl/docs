@@ -3,7 +3,11 @@ You'll need to install the following dependencies in order to run and use Jexact
 
 ***
 
-?> Looking for a premium, high quality hosting provider? Check out [HostEZ.io](https://hostez.io),
+?>
+<br />
+![HostEZ logo](../../../public/images/hostez.png)
+<br />
+Looking for a premium, high quality hosting provider? Check out [HostEZ.io](https://hostez.io),
 who support gameservers such as Valheim, Minecraft, and Terraria - while also offering VPS and bare metal solutions.
 
 PHP `8.1` with the extensions:
