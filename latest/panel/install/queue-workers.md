@@ -38,8 +38,9 @@ RestartSec=5s
 WantedBy=multi-user.target
 ```
 
-### Enable Queue Worker
-Finally, enable the queue worker we just made to start and run on boot.
+### Enable Queue Workers
+Finally, enable the jexactyl panel service we just made as well as the redis service to start and run on boot.
 ```bash
 sudo systemctl enable --now panel.service
+sudo systemctl enable --now redis-server
 ```
