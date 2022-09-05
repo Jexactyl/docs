@@ -2,7 +2,7 @@
 
 ***
 
-Using this guide, you'll be able to upgrade to Jexactyl v3.x to v2.x.
+Using this guide, you'll be able to upgrade to Jexactyl v3.x from v2.x.
 
 ***
 
