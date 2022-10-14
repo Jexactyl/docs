@@ -14,7 +14,7 @@ to make this software easier more advanced while also being nicer to use.
 - Server Renewal system
 
 ## Ready to get started?
-If you're a new user, you can start with our [Installation Guides](latest/panel/install/dependencies.md).
+If you're a new user, you should check out our [Installation Guides](latest/panel/install/dependencies.md).
 
 If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](latest/build/install.md).
 
