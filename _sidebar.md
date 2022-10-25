@@ -12,6 +12,9 @@
         * [NGINX without SSL](latest/panel/webservers/nginx.md)
         * [Apache with SSL](latest/panel/webservers/apache-ssl.md)
         * [Apache without SSL](latest/panel/webservers/apache.md)
+        
+    * `Updating`
+        * [Manual Update](latest/panel/update/manual.md)
 
 * **Daemon (v1.x)**
     * [Installation](latest/daemon/install.md)
@@ -32,4 +35,3 @@
     * [Install build tools](latest/build/install.md)
     * [Build frontend files](latest/build/building.md)
 
-* **Payment Gateways**
