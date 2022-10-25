@@ -22,13 +22,14 @@
     * [From Pterodactyl (v1.x)](latest/migration/pterodactyl.md)
     * [From Jexactyl (v2.x)](latest/migration/jexactyl.md)
 
-* **Discord OAuth**
-    * [Configure Discord OAuth](latest/discord/oauth.md)
+* **Additional Configuration**
+    * [Discord Registration](latest/discord/oauth.md)
+    * [Setting up PayPal](latest/payments/paypal.md)
+    * [Setting up Stripe](latest/payments/stripe.md)
+    * [Setting up Stripe](latest/config/renewal.md)
 
 * **Modification**
     * [Install build tools](latest/build/install.md)
     * [Build frontend files](latest/build/building.md)
 
 * **Payment Gateways**
-    * [Setting up PayPal](latest/payments/paypal.md)
-    * [Setting up Stripe](latest/payments/stripe.md)
