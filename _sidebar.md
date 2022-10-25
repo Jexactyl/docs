@@ -26,7 +26,7 @@
     * [Discord Registration](latest/discord/oauth.md)
     * [Setting up PayPal](latest/payments/paypal.md)
     * [Setting up Stripe](latest/payments/stripe.md)
-    * [Setting up Stripe](latest/config/renewal.md)
+    * [Configuring Renewals](latest/config/renewal.md)
 
 * **Modification**
     * [Install build tools](latest/build/install.md)
