@@ -52,7 +52,7 @@ nano .env
 
 ### 7. Test your configuration
 
-Head over to the Jexactyl Storefront and click the 'Balance' tab. Once you're there, attempt to buy `x` credits with Paypal.
+Head over to the Jexactyl Storefront and click the 'Balance' tab. Once you're there, attempt to buy `x` credits with PayPal.
 If the page redirects to a PayPal purchase portal, congrats! You've successfully set up and configured PayPal.
 
 ?> If you run into issues while getting started with PayPal, let us know in the [Jexactyl Discord](https://discord.com/invite/qttGR4Z5Pk)

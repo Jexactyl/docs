@@ -8,7 +8,7 @@ to make this software easier more advanced while also being nicer to use.
 
 ## Features
 - Built using the latest dependencies and packages
-- Allows users to purchase resoruces and create servers
+- Allows users to purchase resources and create servers
 - Clean, minimalistic UI
 - Fully configurable
 - Server Renewal system

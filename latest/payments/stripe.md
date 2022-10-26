@@ -48,7 +48,7 @@ Then add the following events:
 
 ### 4. Copy generated keys 
 
-After you've done this, copy both your webhook secret and your API key
+After you've done this, copy both your webhook secret and your API key,
 so we can put them in the .env configuration file.
 
 ![image](../../public/images/stripe-webhook-secret.jpg)
