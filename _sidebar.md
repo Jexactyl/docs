@@ -14,7 +14,7 @@
         * [Apache without SSL](latest/panel/webservers/apache.md)
         
     * `Updating`
-        * [Manual Update](latest/panel/update/manual.md)
+        * [Manual Update](latest/panel/updating/manual.md)
 
 * **Daemon (v1.x)**
     * [Installation](latest/daemon/install.md)
