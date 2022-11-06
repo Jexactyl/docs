@@ -63,7 +63,7 @@ chmod -R 755 storage/* bootstrap/cache
 ### Update Composer dependencies
 
 After the new files have been downloaded, you'll need to update the PHP Composer dependencies
-that run this Panel. To do so, use `composer` to update the pakcages:
+that run this Panel. To do so, use `composer` to update the packages:
 
 ```bash
 # Temporary fix for errors.

@@ -8,15 +8,15 @@ to make this software easier more advanced while also being nicer to use.
 
 ## Features
 - Built using the latest dependencies and packages
-- Allows users to purchase resoruces and create servers
+- Allows users to purchase resources and create servers
 - Clean, minimalistic UI
 - Fully configurable
 - Server Renewal system
 
 ## Ready to get started?
-If you're a new user, you should check out our [Installation Guides](latest/panel/install/dependencies.md).
+If you're a new user, you should check out our [Installation Guides](https://docs.jexactyl.com/#/latest/panel/install/dependencies).
 
-If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](latest/build/install.md).
+If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](https://docs.jexactyl.com/#/latest/build/install).
 
 ## Screenshots
 ![Dashboard](https://cdn.discordapp.com/attachments/927394141158133760/1034607072316231740/unknown.png)

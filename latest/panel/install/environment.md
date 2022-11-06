@@ -46,7 +46,7 @@ php artisan p:environment:mail # Not required to run the Panel.
 ***
 
 ### Database Migration
-Now we need to setup all of the base data for the Panel in the database you created earlier. The command below may take some time to run depending on your machine. Please **DO NOT exit the process** until it is completed! This command will setup the database tables and then add all of the Nests & Eggs that power Jexactyl.
+Now we need to set up all the base data for the Panel in the database you created earlier. The command below may take some time to run depending on your machine. Please **DO NOT exit the process** until it is completed! This command will set up the database tables and then add all the Nests & Eggs that power Jexactyl.
 
 ```bash
 php artisan migrate --seed --force

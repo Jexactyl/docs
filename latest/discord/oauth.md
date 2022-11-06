@@ -34,7 +34,7 @@ for Discord. Make sure to enable the registration module, otherwise users will n
 
 ### Test your Application
 
-Give it a whirl and try to login via Discord. If you encounter an error like `invalid_redirect_uri`, go over
+Give it a whirl and try to log in via Discord. If you encounter an error like `invalid_redirect_uri`, go over
 step 3 again and make sure your settings are 100% correct and valid.
 
 ?>

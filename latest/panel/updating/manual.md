@@ -11,7 +11,7 @@ Take a backup of your installation before continuing.
 
 ***
 
-### Maintainence mode
+### Maintenance mode
 
 Start by shutting down the Panel while we perform upgrades.
 
