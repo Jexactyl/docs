@@ -55,14 +55,18 @@ After changing the files, we must re-allow permissions for our
 webserver so that Jexactyl can be hosted and accessed properly.
 
 ```bash
+cd /var/www/jexactyl
+
+# ONLY RUN ONE OF THE FOLLOWING COMMANDS!
+
 # If using NGINX or Apache (not on CentOS):
-chown -R www-data:www-data /var/www/pterodactyl/*
+chown -R www-data:www-data *
 
 # If using NGINX on CentOS:
-chown -R nginx:nginx /var/www/pterodactyl/*
+chown -R nginx:nginx *
 
 # If using Apache on CentOS
-chown -R apache:apache /var/www/pterodactyl/*
+chown -R apache:apache *
 ```
 
 ### Finalize update
