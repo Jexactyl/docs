@@ -10,7 +10,7 @@ crontab -e # Pick '1' if prompted
 Then, paste this line and exit after:
 
 ```bash
-0 0 * * * php /var/www/jexactyl/artisan schedule:renewal >> /dev/null 2>&1
+0 0 * * * php /var/www/jexactyl/artisan p:schedule:renewal >> /dev/null 2>&1
 ```
 
 ?>
