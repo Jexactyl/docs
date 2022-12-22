@@ -2,7 +2,7 @@
 
 ***
 
-!> This is not recommended for production usage, whatsoever, it is possible to do if you have access to the DirectAdmin directory via SSH.
+!> This is not recommended for production usage, whatsoever, it is possible to do if you have access to the DirectAdmin directory via SSH. It also requires some basic understanding of Linux commands.
 
 ### Getting everything ready
 
