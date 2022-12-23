@@ -4,6 +4,8 @@
 
 !> This is not recommended for production usage, whatsoever, it is possible to do if you have access to the DirectAdmin directory via SSH. It also requires some basic understanding of Linux commands.
 
+?> Do note, it'll reset the file once you add something, such as a subdomain, etc.
+
 ### Getting everything ready
 
 You'll need to fire up a SSH session to your node, then navigate to the DirectAdmin's folder where the users OpenLiteSpeed configuration files are located:
