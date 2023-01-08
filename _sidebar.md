@@ -10,6 +10,7 @@
         * [SSL Setup](latest/panel/webservers/setup-ssl.md)
         * [NGINX with SSL](latest/panel/webservers/nginx-ssl.md)
         * [NGINX without SSL](latest/panel/webservers/nginx.md)
+        * [DirectAdmin](latest/panel/webservers/directadmin.md)
         * [Apache with SSL](latest/panel/webservers/apache-ssl.md)
         * [Apache without SSL](latest/panel/webservers/apache.md)
         
