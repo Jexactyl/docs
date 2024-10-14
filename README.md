@@ -21,7 +21,7 @@ If you're a more experienced user who wants to edit the Panel, check out our [Mo
 ## Screenshots
 ![Dashboard](https://cjsprojects.com/cdn/Jexactyl/Dashboard.png)
 ![Storefront](https://cjsprojects.com/cdn/Jexactyl/Store.png)
-![Server Create](https://cjsprojects.com/cdn/Jexactyl/Console.png)
+![Server Create](https://cjsprojects.com/cdn/Jexactyl/Create.png)
 ![Server Console](https://cjsprojects.com/cdn/Jexactyl/Console.png)
 ![Admin Default](public/images/new/admin-default.png)
 ![Admin Theme](public/images/new/admin-blue.png)
