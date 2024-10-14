@@ -19,9 +19,9 @@ If you're a new user, you should check out our [Installation Guides](https://doc
 If you're a more experienced user who wants to edit the Panel, check out our [Modification Guides](https://docs.jexactyl.com/#/latest/build/install).
 
 ## Screenshots
-![Dashboard](https://cdn.discordapp.com/attachments/927394141158133760/1034607072316231740/unknown.png)
-![Storefront](https://cdn.discordapp.com/attachments/1034607211630051358/1034607643744014336/unknown.png)
-![Server Create](https://cdn.discordapp.com/attachments/1034607211630051358/1034607749536956466/unknown.png)
-![Server Console](https://cdn.discordapp.com/attachments/927394141158133760/1034607072895053845/unknown.png)
+![Dashboard](https://cjsprojects.com/cdn/Jexactyl/Dashboard.png)
+![Storefront](https://cjsprojects.com/cdn/Jexactyl/Store.png)
+![Server Create](https://cjsprojects.com/cdn/Jexactyl/Console.png)
+![Server Console](https://cjsprojects.com/cdn/Jexactyl/Console.png)
 ![Admin Default](public/images/new/admin-default.png)
 ![Admin Theme](public/images/new/admin-blue.png)
