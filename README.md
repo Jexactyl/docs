@@ -4,7 +4,7 @@ Jexactyl is a modern, fast and feature-rich fork of [Pterodactyl Panel](https://
 Jexactyl aims to improve already-existing features of this software as well as integrate many more functions
 to make this software easier more advanced while also being nicer to use.
 
-![Dashboard](https://cdn.discordapp.com/attachments/927394141158133760/1034607072316231740/unknown.png)
+![Dashboard](https://cjsprojects.com/cdn/Jexactyl/Dashboard.png)
 
 ## Features
 - Built using the latest dependencies and packages
