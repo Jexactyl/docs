@@ -4,6 +4,10 @@
  * work well for content-centric websites.
  */
 
+/* Import slick-carousel styles */
+@import '~slick-carousel/slick/slick.css';
+@import '~slick-carousel/slick/slick-theme.css';
+
 /* You can override the default Infima variables here. */
 :root {
   --ifm-color-primary: #2e8555;

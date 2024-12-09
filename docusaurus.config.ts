@@ -67,6 +67,9 @@ const config: Config = {
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
+    colorMode: {
+      defaultMode: 'dark',
+    },
     navbar: {
       title: 'My Site',
       logo: {
@@ -131,7 +134,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Jexactyl, built with Docusaurus`,
     },
     prism: {
       theme: prismThemes.github,
