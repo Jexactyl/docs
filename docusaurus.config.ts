@@ -85,7 +85,7 @@ const config: Config = {
         },
         {to: '/blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/facebook/docusaurus',
+          href: 'https://github.com/jexactyl/jexactyl',
           label: 'GitHub',
           position: 'right',
         },
@@ -95,11 +95,15 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Jexactyl',
           items: [
             {
               label: 'Documentation',
               to: '/docs/intro',
+            },
+            {
+              label: 'Blog',
+              to: '/blog',
             },
           ],
         },
@@ -113,15 +117,6 @@ const config: Config = {
             {
               label: 'Discord',
               href: 'https://discord.gg/qttGR4Z5Pk',
-            },
-          ],
-        },
-        {
-          title: 'More',
-          items: [
-            {
-              label: 'Blog',
-              to: '/blog',
             },
           ],
         },
