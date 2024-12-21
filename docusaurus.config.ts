@@ -126,7 +126,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Made with <3 by Jexactyl & Contributors`,
+      copyright: `Made by Jexactyl & Contributors`,
     },
     prism: {
       theme: prismThemes.github,
