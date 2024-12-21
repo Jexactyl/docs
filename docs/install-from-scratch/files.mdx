@@ -1,0 +1,29 @@
+---
+sidebar_position: 2
+---
+
+# Step Two - Files
+
+Next, we move onto downloading the files needed to run Jexactyl.
+
+### Create application directory
+Before we download the necessary files, we need somewhere for them to live. You can change `jexactyl` to whatever you like,
+but you'll need to remember to modify that through the rest of the documentation.
+
+```bash
+mkdir /var/www/jexactyl # Make the directory
+cd /var/www/jexactyl # Navigate to the directory
+```
+
+### Download application files
+Now we're ready to download, extract and permit the files used to run the application.
+```bash
+# Download file archive from GitHub
+curl -Lo panel.tar.gz https://github.com/jexactyl/jexactyl/releases/latest/download/panel.tar.gz
+
+# Extract the archive
+tar -xzvf panel.tar.gz
+
+# Give certain folders higher permissions for access
+chmod -R 755 storage/* bootstrap/cache/
+```

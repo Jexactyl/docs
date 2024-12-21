@@ -1,12 +1,11 @@
 ---
 title: 'Jexactyl v4 - A new chapter'
 authors: [camwhit-e]
-date: '2024-12-09'
+date: '2024-12-31'
 tags: ['hello']
 ---
 
 import ImageCarousel from '@site/src/components/ImageCarousel';
-
 
 ## Introduction
 Since 2022, Jexactyl v3 has provided a smooth, hyperfast UI and reliable backend to tens of thousands of users and business owners.
@@ -19,7 +18,7 @@ that I'd like to give you some information about.
 
 ---
 
-## Features: All-new Billing
+## Feature: All-new Billing
 <ImageCarousel
     images={[
         { url: 'https://res.cloudinary.com/dfrgw9kfn/image/upload/v1733709567/kpzo6qzfkrgfxynrdhsa.png', text: 'The client-side UI for viewing available packages.' },
@@ -40,6 +39,45 @@ Having this advanced payment system in Jexactyl offers several benefits:
 - Users do not have to navigate between multiple different websites to order a product
 - Admins only need to configure the site once, instead of managing multiple sites
 - Customers will only need one set of login details, which avoids confusion
+
+---
+
+## Feature: Admin Activity Logs
+<ImageCarousel
+    images={[
+        { url: 'https://res.cloudinary.com/dfrgw9kfn/image/upload/v1734750276/Screenshot_2024-12-21_at_03-03-58_Admin_Admin_Activity_z2bjcd.png',
+            text: 'Admin actions are logged and displayed in the UI.' },
+        {
+            url: 'https://res.cloudinary.com/dfrgw9kfn/image/upload/v1734750445/Screenshot_2024-12-21_at_03-07-15_Admin_Admin_Activity_fbloa0.png',
+            text: 'All logs include detailed metadata about the action.',
+        }
+    ]}
+/>
+
+Jexactyl v4 includes a new system which logs all activity made by all administrators on the Panel
+and displays it via the administrative UI. These logs are created instantly and can't be deleted,
+improving security and giving panel owners more control over their administrative users.
+
+All logs contain detailed metadata about the action, including new updates, timestamps and user data.
+
+---
+
+## Feature: Jexactyl AI
+<ImageCarousel
+    images={[
+        { url: 'https://res.cloudinary.com/dfrgw9kfn/image/upload/v1734750574/Screenshot_2024-12-21_at_03-09-22_Admin_Jexactyl_AI_qyecih.png',
+            text: 'Administrators can interact with the AI on the admin-side.' },
+        {
+            url: 'https://res.cloudinary.com/dfrgw9kfn/image/upload/v1734750687/Screenshot_2024-12-21_at_03-11-15_cam_s_server_Console_ev65hi.png',
+            text: 'Users can get prompted to ask AI for help when their server crashes.',
+        }
+    ]}
+/>
+
+Another new feature of V4 is Artifical Intelligence integration with Google Gemini.
+This allows users to debug their servers without necessarily getting in touch with support,
+which can reduce the reliance of administrative support as it provides solutions to users
+which they can implement themselves.
 
 ---
 
@@ -88,3 +126,10 @@ The alert can be displayed in multiple different areas of the user's interface, 
 to display different colours and text depending on how severe the information is.
 
 ---
+
+## Summary
+
+This list of new features and customization options are just the start of Jexactyl v4's list of new
+features that it brings to the dynamic market of server hosting software. If you enjoy using v4 when
+it releases, please make sure to give us a star on GitHub or join our Discord for updates and sneak peeks
+at what's coming next.

@@ -1,0 +1,41 @@
+---
+sidebar_position: 1
+---
+
+# Step One - Dependencies
+
+We need to start by downloading system dependencies.
+
+:::tip
+Make sure you are logged in as `root` before running these commands.
+:::
+
+### Supported Operating Systems
+| Operating System | Version | Is Supported? | Notes |
+|----------|----------|----------|----------|
+| Debian | `>=11.x` | ✅ | You may need to download PHP dependencies using a different repository. |
+| Ubuntu | `>=23.x` | ✅ | Installation documents are based on Ubuntu 23.10. |
+| Other OS | `unknown` | ❓ | The application *should* run fine, but has not been tested thoroughly. |
+
+### Download System Dependencies
+On the Linux system you want the application to be installed on, run the following commands:
+
+```shell
+# Add basic system dependencies if aren't already installed
+apt -y install software-properties-common curl apt-transport-https ca-certificates gnupg
+
+# Add additional repositories for PHP
+LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
+
+# Update repositories list
+apt update
+
+# Install Dependencies
+apt -y install php8.3 php8.3-{common,cli,gd,mysql,mbstring,bcmath,xml,fpm,curl,zip} mariadb-server nginx tar unzip git redis-server
+```
+
+### Download Composer
+Composer is needed to manage PHP packages for us. Once the above commands have been executed, run the following:
+```bash
+curl -sS https://getcomposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
+```

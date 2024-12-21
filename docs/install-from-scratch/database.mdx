@@ -1,0 +1,26 @@
+---
+sidebar_position: 3
+---
+
+# Step Three - MySQL Setup
+
+Now that everything is downloaded, we need a database.
+
+### Enter MySQL Terminal
+In order to interact with our database wrapper, `mysql`, we need to enter its terminal. You can do so by running:
+```bash
+sudo mysql -u root # using 'root' grants privileged access
+```
+
+### Configure Jexactyl database
+Now that we are in the MySQL terminal, we can run the following commands to create our database and user:
+:::warning
+Make sure to update `randomPassword` to a secure password of your own choosing.
+:::
+
+```bash
+CREATE USER 'jexactyluser'@'127.0.0.1' IDENTIFIED BY 'randomPassword';
+CREATE DATABASE jexactyldb;
+GRANT ALL PRIVILEGES ON jexactyldb.* TO 'jexactyl'@'127.0.0.1' WITH GRANT OPTION;
+exit; # Leave the terminal once we're done setting everything up
+```

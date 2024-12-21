@@ -2,46 +2,36 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# Introduction
 
-Let's discover **Docusaurus in less than 5 minutes**.
+Jexactyl is a *hyperfast, clean and intricate* fullstack web application built using
+**Laravel** and **React** to provide a user interface for several objectives:
+- Efficient server hypervisation with Docker engine
+- Complete server access via simple UI controls
+- Integrated billing/payment solution
+- Absolute user management with custom permission levels
 
-## Getting Started
+## Get Started
 
-Get started by **creating a new site**.
+Want to install Jexactyl? Here are the options to get the ball rolling:
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+- If you are **installing from scratch**, follow the [**Fresh Install Documentation**](/docs/intro.md)
 
-### What you'll need
+- If you plan to **migrate from Pterodactyl v1.x**, follow the [**Pterodactyl Migration**](/docs/intro.md)
 
-- [Node.js](https://nodejs.org/en/download/) version 18.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
+- If you plan to **migrate from Jexactyl v3.x**, follow the [**Jexactyl Migration**](/docs/intro.md)
 
-## Generate a new site
+## Support us!
 
-Generate a new Docusaurus site using the **classic template**.
+Jexactyl is run by a one-man-team & open-source contributors. That being said, any support you can provide
+to aid in the development of this software goes a long way. Your contribution goes towards funding the development servers for Jexactyl which are used to test new versions before release.
 
-The classic template will automatically be added to your project after you run the command:
+You can donate to us through [Stripe](https://donate.stripe.com/6oE02Zftd9cC34IbIS), [PayPal](https://paypal.me/jxctl) or [Ko-Fi](https://ko-fi.com/jexactyl).
 
-```bash
-npm init docusaurus@latest my-website classic
-```
+## License
 
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
+This project is forked from [Pterodactyl](https://pterodactyl.io), who hold the initial copyright & license.
 
-The command also installs all necessary dependencies you need to run Docusaurus.
+Pterodactyl® Copyright © 2015-2022 Dane Everitt and contributors
 
-## Start your site
-
-Run the development server:
-
-```bash
-cd my-website
-npm run start
-```
-
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
-
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
-
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+Jexactyl® Copyright © 2022-2025 Cam White
