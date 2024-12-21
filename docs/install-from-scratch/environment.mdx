@@ -42,3 +42,9 @@ Now that the database is set up and the credentials have been configured, we can
 ```bash
 php artisan migrate --seed --force
 ```
+
+:::info
+TEMPORARY WORKAROUND: As this software version is extremely new and unstable, the following workaround is required:
+
+Set `RECAPTCHA_ENABLED=false` in your `.env` file to disable ReCAPTCHA, as the module currently doesn't work.
+:::
