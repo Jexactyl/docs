@@ -12,6 +12,8 @@ Since 2022, Jexactyl v3 has provided a smooth, hyperfast UI and reliable backend
 The community has grown and support has increased to make this project a true competitor for other game panel interfaces popular
 in the industry, such as Pelican Panel, Pterodactyl and more.
 
+<!-- truncate -->
+
 Now, it's time for an upgrade. Version 4, coming this year, has been rebuilt entirely - not a single line of code copied from
 the previous version to ensure even greater stability, performance and practicality. Today, there's some exciting new features
 that I'd like to give you some information about.

@@ -1,0 +1,57 @@
+---
+sidebar_position: 5
+---
+
+# Step Five - Queue Workers
+
+Once step 1-4 is complete, we can establish background workers.
+
+### Create `crontab` queue worker
+First, we need to establish a 'cron-job' which runs background tasks against the system's clock.
+You'll need to run some commands in order to set this up, which are shown below:
+:::tip
+If `crontab` prompts you to choose a text editor, select '1' for **nano** for ease of use.
+:::
+
+```bash
+apt -y install crontab # if not already installed
+crontab -e # pick '1' if prompted to choose an editor
+```
+Then, pase the following content on a new line:
+```
+* * * * * php /var/www/jexactyl/artisan schedule:run >> /dev/null 2>&1
+```
+You can then exit the text editor, usually by running `CTRL+X` and `Y`.
+
+### Create `systemd` queue worker
+The next step is to create a `service` file which runs queued batch jobs in the background.
+You can do this by running the following:
+```bash
+nano /etc/systemd/system/jxctl.service
+```
+Then, in this file, paste the following:
+```bash
+# Jexactyl Queue Worker File
+# ----------------------------------
+
+[Unit]
+Description=Jexactyl Queue Worker
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+ExecStart=/usr/bin/php /var/www/jexactyl/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
+StartLimitInterval=180
+StartLimitBurst=30
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Enable `systemd` queue worker
+Finally, enable the `jxctl.service` worker we just made by running this command:
+```bash
+systemctl enable --now jxctl.service
+```

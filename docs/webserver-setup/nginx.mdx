@@ -1,0 +1,210 @@
+---
+sidebar_position: 1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Using NGINX
+
+In this guide, we'll show you how to set up NGINX for Jexactyl.
+
+### Remove default webserver files
+Firstly, if they exist, we need to remove the `default` files that are served over NGINX.
+```bash
+rm /etc/nginx/sites-available/default
+rm /etc/nginx/sites-enabled/default
+```
+
+### Create webserver configuration
+Now, we can create a file used to host Jexactyl on NGINX.
+<Tabs>
+  <TabItem value="ssl" label="Using SSL (recommended)" default>
+    ### Setup SSL certificate
+    Before we create the configuration, you need to make a new SSL certificate for the domain
+    that you are hosting Jexactyl on - we will use `panel.example.com` for an example domain.
+    The first thing you need to do is go to your DNS provider and point an A-record towards the IP
+    of your webserver corresponding to the domain. If you're unsure on how to do this, read [this article](https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/).
+    ```bash
+    apt -y install certbot python3-certbot-nginx # Install SSL certificate maker
+    certbot certonly --nginx -d panel.example.com # Create SSL certificate
+    ```
+
+    ### Create jexactyl.conf file
+    Now that we have a valid SSL certificate, we can create the webserver config file used to host Jexactyl.
+    ```bash
+    nano /etc/nginx/sites-available/jexactyl.conf
+    ```
+    When in this file, paste the following content:
+    :::warning
+    Replace `<domain>` with YOUR panel domain. If you don't, NGINX will crash and your panel will fail to start.
+    :::
+    ```bash
+    server {
+        # Replace the example <domain> with your domain name or IP address
+        listen 80;
+        server_name <domain>;
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+        # Replace the example <domain> with your domain name or IP address
+        listen 443 ssl http2;
+        server_name <domain>;
+
+        root /var/www/jexactyl/public;
+        index index.php;
+
+        access_log /var/log/nginx/jexactyl.app-access.log;
+        error_log  /var/log/nginx/jexactyl.app-error.log error;
+
+        # allow larger file uploads and longer script runtimes
+        client_max_body_size 100m;
+        client_body_timeout 120s;
+
+        sendfile off;
+
+        # SSL Configuration - Replace the example <domain> with your domain
+        ssl_certificate /etc/letsencrypt/live/<domain>/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/<domain>/privkey.pem;
+        ssl_session_cache shared:SSL:10m;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
+        ssl_prefer_server_ciphers on;
+
+        # See https://hstspreload.org/ before uncommenting the line below.
+        # add_header Strict-Transport-Security "max-age=15768000; preload;";
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Robots-Tag none;
+        add_header Content-Security-Policy "frame-ancestors 'self'";
+        add_header X-Frame-Options DENY;
+        add_header Referrer-Policy same-origin;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location ~ \.php$ {
+            fastcgi_split_path_info ^(.+\.php)(/.+)$;
+            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param PHP_VALUE "upload_max_filesize = 100M \n post_max_size=100M";
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param HTTP_PROXY "";
+            fastcgi_intercept_errors off;
+            fastcgi_buffer_size 16k;
+            fastcgi_buffers 4 16k;
+            fastcgi_connect_timeout 300;
+            fastcgi_send_timeout 300;
+            fastcgi_read_timeout 300;
+            include /etc/nginx/fastcgi_params;
+        }
+
+        location ~ /\.ht {
+            deny all;
+        }
+    }
+    ```
+    ### Symlink configuration file
+    Once this file has been created, we can make a `symlink` which links two files together in different locations
+    on your system. Run the command below to do this:
+    ```bash
+    ln -s /etc/nginx/sites-available/jexactyl.conf /etc/nginx/sites-enabled/jexactyl.conf
+    ```
+    ### Reload NGINX and start application
+    First, let's test our NGINX configuration to make sure it works:
+    ```bash
+    nginx -t
+    ```
+    If you receive no errors when this is run, proceed by restarting NGINX:
+    ```bash
+    systemctl restart --now nginx
+    ```
+    :::success
+    Jexactyl should now be installed and running on your webserver.
+    Any issues? Let us know on our [Discord](https://discord.com/invite/qttGR4Z5Pk).
+    :::
+  </TabItem>
+  <TabItem value="no-ssl" label="Without SSL">
+    :::warning
+    We strongly recommend you use SSL, especially if you're running Jexactyl in a production environment.
+    :::
+    ### Create jexactyl.conf file
+    Since we are not using SSL, we can now create the webserver config file used to host Jexactyl.
+    ```bash
+    nano /etc/nginx/sites-available/jexactyl.conf
+    ```
+    When in this file, paste the following content:
+    :::warning
+    Replace `<domain>` with YOUR panel domain. If you don't, NGINX will crash and your panel will fail to start.
+    :::
+    ```bash
+    server {
+        # Replace the example <domain> with your domain name or IP address
+        listen 80;
+        server_name <domain>;
+
+        root /var/www/jexactyl/public;
+        index index.html index.htm index.php;
+        charset utf-8;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+
+        access_log off;
+        error_log  /var/log/nginx/jexactyl.app-error.log error;
+
+        # allow larger file uploads and longer script runtimes
+        client_max_body_size 100m;
+        client_body_timeout 120s;
+
+        sendfile off;
+
+        location ~ \.php$ {
+            fastcgi_split_path_info ^(.+\.php)(/.+)$;
+            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param PHP_VALUE "upload_max_filesize = 100M \n post_max_size=100M";
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param HTTP_PROXY "";
+            fastcgi_intercept_errors off;
+            fastcgi_buffer_size 16k;
+            fastcgi_buffers 4 16k;
+            fastcgi_connect_timeout 300;
+            fastcgi_send_timeout 300;
+            fastcgi_read_timeout 300;
+        }
+
+        location ~ /\.ht {
+            deny all;
+        }
+    }
+    ```
+        ### Symlink configuration file
+    Once this file has been created, we can make a `symlink` which links two files together in different locations
+    on your system. Run the command below to do this:
+    ```bash
+    ln -s /etc/nginx/sites-available/jexactyl.conf /etc/nginx/sites-enabled/jexactyl.conf
+    ```
+    ### Reload NGINX and start application
+    First, let's test our NGINX configuration to make sure it works:
+    ```bash
+    nginx -t
+    ```
+    If you receive no errors when this is run, proceed by restarting NGINX:
+    ```bash
+    systemctl restart --now nginx
+    ```
+    :::success
+    Jexactyl should now be installed and running on your webserver.
+    Any issues? Let us know on our [Discord](https://discord.com/invite/qttGR4Z5Pk).
+    :::
+  </TabItem>    
+</Tabs>

@@ -1,0 +1,44 @@
+---
+sidebar_position: 4
+---
+
+# Step Four - Environment
+
+In this step, we set environment configuration for Jexactyl.
+
+### Copy configuration file
+The `.env` file at the root of the application houses critical environment variables, such as database configuration.
+We can copy over the `.env.example` file provided, which will fill in default values:
+```bash
+cp -R .env.example .env
+```
+
+### Install application dependencies
+While we already installed *system* packages in previous steps, we now need to install dependencies that
+are specific to Jexactyl. Run the following command below to do so:
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+### Generate application key
+Now we can generate an application key, used to encrypt sensitive data on the application.
+:::danger
+NEVER share this key. If this is exposed, all encrypted data on your instance (like passwords) will be compensated.
+:::
+
+```bash
+php artisan key:generate --force
+```
+
+### Configure app & database settings
+Basic Panel setup can be done by running the below commands via the CLI:
+```bash
+php artisan p:environment:setup # Basic app setup
+php artisan p:environment:database # Database credentials
+```
+
+### Migrate database configuration
+Now that the database is set up and the credentials have been configured, we can run the migrations:
+```bash
+php artisan migrate --seed --force
+```
