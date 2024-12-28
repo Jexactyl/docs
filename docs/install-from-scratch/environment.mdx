@@ -43,6 +43,21 @@ Now that the database is set up and the credentials have been configured, we can
 php artisan migrate --seed --force
 ```
 
+### Give webserver permissions
+Finally, give the webserver necessary permissions to access files via the `chown` command.
+```bash
+chmod -R 755 storage/* bootstrap/cache/
+
+# If using NGINX, Apache or Caddy (not on RHEL / Rocky Linux / AlmaLinux)
+chown -R www-data:www-data /var/www/pterodactyl/*
+
+# If using NGINX on RHEL / Rocky Linux / AlmaLinux
+chown -R nginx:nginx /var/www/pterodactyl/*
+
+# If using Apache on RHEL / Rocky Linux / AlmaLinux
+chown -R apache:apache /var/www/pterodactyl/*
+```
+
 :::info
 TEMPORARY WORKAROUND: As this software version is extremely new and unstable, the following workaround is required:
 
