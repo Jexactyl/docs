@@ -12,6 +12,10 @@ We can copy over the `.env.example` file provided, which will fill in default va
 ```bash
 cp -R .env.example .env
 ```
+ReCAPTCHA must also be disabled in order to log in. Add this line to your `.env` file:
+```
+RECAPTCHA_ENABLED=false
+```
 
 ### Install application dependencies
 While we already installed *system* packages in previous steps, we now need to install dependencies that
@@ -41,6 +45,14 @@ php artisan p:environment:database # Database credentials
 Now that the database is set up and the credentials have been configured, we can run the migrations:
 ```bash
 php artisan migrate --seed --force
+```
+
+### Create admin user
+To access the Panel for the first time, you'll need to make a user via the CLI - don't worry, you can 
+create users easily via the frontend! Here's a simple command which will take you through the steps of
+setting up the initial admin account:
+```bash
+php artisan p:user:make
 ```
 
 ### Give webserver permissions
