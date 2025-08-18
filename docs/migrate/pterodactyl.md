@@ -6,9 +6,9 @@ sidebar_position: 2
 
 Migrate from Pterodactyl v1 to all new Jexactyl v4.
 
-::info 
+:::tip
 If you prefer an **automatic migration**, you can use the following command: `bash <(curl -s https://raw.githubusercontent.com/freeutka/gotov4/refs/heads/main/migrate.sh)`
-::
+:::
 
 :::danger
 Pterodactyl v0.7 is EOL (end-of-life) and is not supported for migration by Jexactyl. If you're running v0.7, please upgrade from Pterodactyl v0.7 to Pterodactyl v1.0 before following this migration guide.
