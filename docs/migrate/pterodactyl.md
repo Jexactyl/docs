@@ -7,7 +7,7 @@ sidebar_position: 2
 Migrate from Pterodactyl v1 to all new Jexactyl v4.
 
 :::tip
-If you prefer an **automatic migration**, you can use the following command: `bash <(curl -s http://jexactyl.freeutka.com/migrate.sh)`
+If you prefer an **automatic migration**, you can use the following command: `bash <(curl -s http://jexactyl.freeutka.xyz/migrate.sh)`
 :::
 
 :::danger
