@@ -7,7 +7,7 @@ sidebar_position: 1
 Migrate from Jexactyl v3 to all new v4.
 
 :::tip
-If you prefer an **automatic migration**, you can use the following command: `bash <(curl -s http://jexactyl.freeutka.com/migrate.sh.txt)`
+If you prefer an **automatic migration**, you can use the following command: `bash <(curl -s http://jexactyl.freeutka.com/migrate.sh)`
 :::
 
 ### Backup your Panel!
