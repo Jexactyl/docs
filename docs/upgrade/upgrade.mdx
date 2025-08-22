@@ -2,12 +2,12 @@
 sidebar_position: 1
 ---
 
-# Upgrade Jexactyl version
+# Upgrade Jexpanel version
 
 This guide is for upgrading the Panel to a new version.
 
 :::danger
-This will NOT work if you are trying to migrate from Pterodactyl, or Jexactyl `v3.x`. This is only for
+This will NOT work if you are trying to migrate from Pterodactyl, or Jexpanel `v3.x`. This is only for
 people currently running version 4 to upgrade to a new release.
 :::
 
@@ -20,7 +20,7 @@ php /var/www/jexactyl/artisan down
 ### Download and extract update
 ```bash
 # Download file archive from GitHub
-curl -Lo panel.tar.gz https://github.com/Jexactyl/Jexactyl/releases/download/v4.0.0-beta5/panel.tar.gz
+curl -Lo panel.tar.gz https://github.com/Jexpanel/Jexpanel/releases/download/v4.0.0-beta5/panel.tar.gz
 
 # Extract the archive
 tar -xzvf panel.tar.gz
@@ -62,6 +62,6 @@ php artisan up
 ```
 
 :::success
-Jexactyl should now be installed and running on your webserver.
+Jexpanel should now be installed and running on your webserver.
 Any issues? Let us know on our [Discord](https://discord.com/invite/qttGR4Z5Pk).
 :::

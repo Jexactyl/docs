@@ -7,7 +7,7 @@ import TabItem from '@theme/TabItem';
 
 # Using NGINX
 
-In this guide, we'll show you how to set up NGINX for Jexactyl.
+In this guide, we'll show you how to set up NGINX for Jexpanel.
 
 ### Remove default webserver files
 Firstly, if they exist, we need to remove the `default` files that are served over NGINX.
@@ -17,12 +17,12 @@ rm /etc/nginx/sites-enabled/default
 ```
 
 ### Create webserver configuration
-Now, we can create a file used to host Jexactyl on NGINX.
+Now, we can create a file used to host Jexpanel on NGINX.
 <Tabs>
   <TabItem value="ssl" label="Using SSL (recommended)" default>
     ### Setup SSL certificate
     Before we create the configuration, you need to make a new SSL certificate for the domain
-    that you are hosting Jexactyl on - we will use `panel.example.com` for an example domain.
+    that you are hosting Jexpanel on - we will use `panel.example.com` for an example domain.
     The first thing you need to do is go to your DNS provider and point an A-record towards the IP
     of your webserver corresponding to the domain. If you're unsure on how to do this, read [this article](https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/).
     ```bash
@@ -31,7 +31,7 @@ Now, we can create a file used to host Jexactyl on NGINX.
     ```
 
     ### Create jexactyl.conf file
-    Now that we have a valid SSL certificate, we can create the webserver config file used to host Jexactyl.
+    Now that we have a valid SSL certificate, we can create the webserver config file used to host Jexpanel.
     ```bash
     nano /etc/nginx/sites-available/jexactyl.conf
     ```
@@ -123,16 +123,16 @@ Now, we can create a file used to host Jexactyl on NGINX.
     systemctl restart --now nginx
     ```
     :::success
-    Jexactyl should now be installed and running on your webserver.
+    Jexpanel should now be installed and running on your webserver.
     Any issues? Let us know on our [Discord](https://discord.com/invite/qttGR4Z5Pk).
     :::
   </TabItem>
   <TabItem value="no-ssl" label="Without SSL">
     :::warning
-    We strongly recommend you use SSL, especially if you're running Jexactyl in a production environment.
+    We strongly recommend you use SSL, especially if you're running Jexpanel in a production environment.
     :::
     ### Create jexactyl.conf file
-    Since we are not using SSL, we can now create the webserver config file used to host Jexactyl.
+    Since we are not using SSL, we can now create the webserver config file used to host Jexpanel.
     ```bash
     nano /etc/nginx/sites-available/jexactyl.conf
     ```
@@ -203,7 +203,7 @@ Now, we can create a file used to host Jexactyl on NGINX.
     systemctl restart --now nginx
     ```
     :::success
-    Jexactyl should now be installed and running on your webserver.
+    Jexpanel should now be installed and running on your webserver.
     Any issues? Let us know on our [Discord](https://discord.com/invite/qttGR4Z5Pk).
     :::
   </TabItem>    
