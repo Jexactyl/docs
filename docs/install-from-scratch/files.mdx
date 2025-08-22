@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Step Two - Files
 
-Next, we move onto downloading the files needed to run Jexactyl.
+Next, we move onto downloading the files needed to run Jexpanel.
 
 ### Create application directory
 Before we download the necessary files, we need somewhere for them to live. You can change `jexactyl` to whatever you like,
@@ -19,14 +19,14 @@ cd /var/www/jexactyl # Navigate to the directory
 Now we're ready to download, extract and permit the files used to run the application.
 ```bash
 # Download file archive from GitHub
-curl -Lo panel.tar.gz https://github.com/Jexactyl/Jexactyl/releases/download/v4.0.0-beta3/panel.tar.gz
+curl -Lo panel.tar.gz https://github.com/jexactyl/jexactyl/releases/download/v4.0.0-rc1/panel.tar.gz
 
 # Extract the archive
 tar -xzvf panel.tar.gz
 ```
 
 ### Set File Permissions
-After downloading Jexactyl's files, we need to set the proper permissions so the webserver can access the files.
+After downloading Jexpanel's files, we need to set the proper permissions so the webserver can access the files.
 
 ```bash
 # Give certain folders higher permissions for access

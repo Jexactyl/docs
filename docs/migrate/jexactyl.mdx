@@ -1,0 +1,99 @@
+---
+sidebar_position: 1
+---
+
+# Migrate from Jexactyl v3
+
+This guide is for migrating from Jexactyl v3 -> Jexpanel v4.
+
+:::danger
+These instructions are ONLY for people moving from Jexactyl v3.x to Jexpanel v4.
+Check the sidebar if you wish to upgrade your existing instance or migrate your data from another panel.
+:::
+
+### Enter maintenance mode
+To keep the panel's integrity, put the app into maintenance mode so no one can access it.
+```bash
+php /var/www/jexactyl/artisan down
+```
+
+### Download and extract update
+```bash
+cd /var/www/jexactyl
+# Download file archive from GitHub
+curl -Lo panel.tar.gz https://github.com/jexactyl/jexactyl/releases/download/v4.0.0-rc1/panel.tar.gz
+
+# Extract the archive
+tar -xzvf panel.tar.gz
+rm panel.tar.gz
+
+# Give certain folders higher permissions for access
+chmod -R 755 storage/* bootstrap/cache/
+```
+
+### Update dependencies
+```bash
+# Delete old vendor files
+rm -r vendor
+rm app/Console/Commands/Environment/EmailSettingsCommand.php
+# Install new dependencies
+composer install --no-dev --optimize-autoloader
+```
+
+### Clear application cache
+```
+php artisan optimize:clear
+```
+
+### Edit database fields
+:::danger
+Please follow these next steps carefully, and if you get an error, DO NOT run any further commands - instead, get in touch with our
+Discord support channel to find a next step. Also ensure you create a database backup in case of any irreversible changes.
+:::
+```bash
+# Replace 'panel' with the name of your database if needed
+mysqldump panel > /var/www/jexactyl/backup.sql
+
+# Enter MySQL console and make changes
+mysql -u root -p
+USE panel;
+DROP TABLE tickets;
+DROP TABLE ticket_messages;
+DROP TABLE theme;
+ALTER TABLE nodes DROP COLUMN deployable;
+exit;
+```
+
+Then, once this is complete, we can then migrate the new database changes.
+
+### Migrate database changes
+```bash
+php artisan migrate --seed --force
+```
+
+### Set webserver permissions
+```
+# If using NGINX or Apache (not on CentOS)
+chown -R www-data:www-data /var/www/jexactyl/*
+
+# If using NGINX on CentOS
+chown -R nginx:nginx /var/www/jexactyl/*
+
+# If using Apache on CentOS
+chown -R apache:apache /var/www/jexactyl/*
+```
+
+### Exit maintenance mode
+```bash
+php artisan up
+```
+
+:::warning
+It may be that your Panel gets stuck on the 'Welcome to Jexpanel' page. If so, ensure that the variable
+`APP_ENVIRONMENT_ONLY` in your `/var/www/jexactyl/.env` file is set to false, and not true.
+:::
+
+:::success
+Jexpanel should now be installed and running on your webserver.
+Any issues? Let us know on our [Discord](https://discord.com/invite/qttGR4Z5Pk).
+:::

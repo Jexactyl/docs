@@ -5,12 +5,12 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Jexactyl',
+  title: 'Jexpanel',
   tagline: 'The next-generation game panel.',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
-  url: 'https://jexactyl.com',
+  url: 'https://jexpanel.com',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
@@ -71,7 +71,7 @@ const config: Config = {
       defaultMode: 'dark',
     },
     navbar: {
-      title: 'Jexactyl',
+      title: 'Jexpanel',
       logo: {
         alt: 'My Site Logo',
         src: 'img/logo.svg',
@@ -95,7 +95,7 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Jexactyl',
+          title: 'Jexpanel',
           items: [
             {
               label: 'Documentation',
@@ -121,7 +121,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Made by Jexactyl & Contributors`,
+      copyright: `Made by Jexpanel & Contributors`,
     },
     prism: {
       theme: prismThemes.github,
