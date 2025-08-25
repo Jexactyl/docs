@@ -54,8 +54,6 @@ mysqldump panel > /var/www/pterodactyl/backup.sql
 # Enter MySQL console and make changes
 mysql -u root -p
 USE panel;
-DROP TABLE tickets;
-DROP TABLE ticket_messages;
 DROP TABLE theme;
 ALTER TABLE nodes DROP COLUMN deployable;
 exit;
