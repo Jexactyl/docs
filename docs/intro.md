@@ -16,10 +16,9 @@ Jexpanel is a *hyperfast, clean and intricate* fullstack web application built u
 Want to install Jexpanel? Here are the options to get the ball rolling:
 
 - If you are **installing from scratch**, follow the [**Fresh Install Documentation**](/docs/category/install---from-scratch)
-
-
-- If you plan to **migrate from Pterodactyl v1.x**, follow the [**Pterodactyl Migration**](/docs/migrate/pterodactyl.md)
-- 
+ 
+- If you plan to **migrate from Pterodactyl v1.x**, follow the **Pterodactyl Migration** (coming soon)
+ 
 - If you plan to **migrate from Jexactyl v3.x**, follow the [**Jexactyl Migration**](/docs/migrate/jexactyl.md)
 
 
