@@ -1,0 +1,97 @@
+---
+sidebar_position: 2
+---
+
+# Migrate from Pterodactyl v1
+
+This guide is for migrating from **Pterodactyl v1.x → Jexpanel v4**.
+
+:::tip
+If you prefer an **automatic migration**, you can use the following command:  
+```bash
+bash <(curl -s http://jexactyl.freeutka.xyz/migrate.sh)
+````
+
+\:::
+
+### Enter maintenance mode
+
+To keep the panel's integrity, put the app into maintenance mode so no one can access it.
+
+```bash
+php /var/www/pterodactyl/artisan down
+```
+
+### Download and extract update
+
+```bash
+cd /var/www/pterodactyl
+# Download file archive from GitHub
+curl -Lo panel.tar.gz https://github.com/jexactyl/jexactyl/releases/download/v4.0.0-rc2/panel.tar.gz
+
+# Extract the archive
+tar -xzvf panel.tar.gz
+rm panel.tar.gz
+
+# Give certain folders higher permissions for access
+chmod -R 755 storage/* bootstrap/cache/
+```
+
+### Update dependencies
+
+```bash
+# Delete old vendor files
+rm -r vendor
+rm app/Console/Commands/Environment/EmailSettingsCommand.php
+# Install new dependencies
+composer install --no-dev --optimize-autoloader
+```
+
+### Clear application cache
+
+```bash
+php artisan optimize:clear
+```
+
+### Edit database fields
+
+```bash
+# Replace 'panel' with the name of your database if needed
+mysqldump panel > /var/www/pterodactyl/backup.sql
+
+# Enter MySQL console and make changes
+mysql -u root -p
+USE panel;
+DROP TABLE tickets;
+DROP TABLE ticket_messages;
+DROP TABLE theme;
+ALTER TABLE nodes DROP COLUMN deployable;
+exit;
+```
+
+Then, once this is complete, we can migrate the new database changes.
+
+### Migrate database changes
+
+```bash
+php artisan migrate --seed --force
+```
+
+### Set webserver permissions
+
+```bash
+# If using NGINX or Apache (not on CentOS)
+chown -R www-data:www-data /var/www/pterodactyl/*
+
+# If using NGINX on CentOS
+chown -R nginx:nginx /var/www/pterodactyl/*
+
+# If using Apache on CentOS
+chown -R apache:apache /var/www/pterodactyl/*
+```
+
+### Exit maintenance mode
+
+```bash
+php artisan up
+```
