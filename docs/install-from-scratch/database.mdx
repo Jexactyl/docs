@@ -19,8 +19,8 @@ Make sure to update `randomPassword` to a secure password of your own choosing.
 :::
 
 ```bash
-CREATE USER 'jexactyluser'@'127.0.0.1' IDENTIFIED BY 'randomPassword';
-CREATE DATABASE jexactyldb;
-GRANT ALL PRIVILEGES ON jexactyldb.* TO 'jexactyluser'@'127.0.0.1' WITH GRANT OPTION;
+CREATE USER 'jexpanel'@'127.0.0.1' IDENTIFIED BY 'randomPassword';
+CREATE DATABASE panel;
+GRANT ALL PRIVILEGES ON panel.* TO 'jexpanel'@'127.0.0.1' WITH GRANT OPTION;
 exit; # Leave the terminal once we're done setting everything up
 ```

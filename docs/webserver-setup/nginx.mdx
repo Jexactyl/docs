@@ -87,7 +87,7 @@ Now, we can create a file used to host Jexpanel on NGINX.
 
         location ~ \.php$ {
             fastcgi_split_path_info ^(.+\.php)(/.+)$;
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_pass unix:/run/php/php8.4-fpm.sock;
             fastcgi_index index.php;
             include fastcgi_params;
             fastcgi_param PHP_VALUE "upload_max_filesize = 100M \n post_max_size=100M";
@@ -168,7 +168,7 @@ Now, we can create a file used to host Jexpanel on NGINX.
 
         location ~ \.php$ {
             fastcgi_split_path_info ^(.+\.php)(/.+)$;
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_pass unix:/run/php/php8.4-fpm.sock;
             fastcgi_index index.php;
             include fastcgi_params;
             fastcgi_param PHP_VALUE "upload_max_filesize = 100M \n post_max_size=100M";
@@ -198,6 +198,12 @@ Now, we can create a file used to host Jexpanel on NGINX.
     ```bash
     nginx -t
     ```
+
+    :::info
+    NGINX configuration fine but getting a '503' error when trying to view the Panel? This is probably because you need to change
+    `unix:/run/php/php8.4-fpm.sock` to whatever PHP version you're actually using on your system, which you can check with `php -v`. 
+    :::
+
     If you receive no errors when this is run, proceed by restarting NGINX:
     ```bash
     systemctl restart --now nginx
