@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 380" width="520" height="380" role="img" aria-label="A VPS node running Pterodactyl Wings and Docker containers">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#3974ee" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#3974ee" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="unit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2d47"/>
+      <stop offset="1" stop-color="#152134"/>
+    </linearGradient>
+    <linearGradient id="cubeTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a6caff"/>
+      <stop offset="1" stop-color="#7bafff"/>
+    </linearGradient>
+    <linearGradient id="cubeLeft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3974ee"/>
+      <stop offset="1" stop-color="#2459db"/>
+    </linearGradient>
+    <linearGradient id="cubeRight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2459db"/>
+      <stop offset="1" stop-color="#1948bc"/>
+    </linearGradient>
+    <g id="cube">
+      <path d="M0 0 L22 11 L0 22 L-22 11Z" fill="url(#cubeTop)"/>
+      <path d="M-22 11 L0 22 L0 46 L-22 35Z" fill="url(#cubeLeft)"/>
+      <path d="M0 22 L22 11 L22 35 L0 46Z" fill="url(#cubeRight)"/>
+    </g>
+    <g id="vents" stroke="#2b3a50" stroke-width="3" stroke-linecap="round">
+      <path d="M0 0v20M10 0v20M20 0v20M30 0v20M40 0v20M50 0v20"/>
+    </g>
+  </defs>
+
+  <ellipse cx="300" cy="170" rx="250" ry="180" fill="url(#glow)"/>
+
+  <!-- dashed links from containers down to the node -->
+  <g stroke="#7bafff" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="3 5" fill="none">
+    <path d="M240 54 V66"/><path d="M320 54 V66"/><path d="M400 54 V66"/>
+  </g>
+
+  <!-- containers (game servers managed by Wings) -->
+  <use href="#cube" x="240" y="6"/>
+  <use href="#cube" x="320" y="0"/>
+  <use href="#cube" x="400" y="6"/>
+
+  <!-- server stack -->
+  <g stroke="#2b3a50" stroke-width="1.5">
+    <rect x="170" y="70" width="300" height="64" rx="10" fill="url(#unit)"/>
+    <rect x="170" y="146" width="300" height="64" rx="10" fill="url(#unit)"/>
+    <rect x="170" y="222" width="300" height="64" rx="10" fill="url(#unit)"/>
+  </g>
+  <g>
+    <circle cx="194" cy="102" r="5" fill="#4ade80"/>
+    <circle cx="212" cy="102" r="5" fill="#7bafff"/>
+    <text x="232" y="107" fill="#a2b0c4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13">vps-1 · wings</text>
+    <use href="#vents" x="398" y="92"/>
+
+    <circle cx="194" cy="178" r="5" fill="#4ade80"/>
+    <circle cx="212" cy="178" r="5" fill="#2b3a50"/>
+    <rect x="232" y="170" width="120" height="16" rx="4" fill="#111b2b" stroke="#2b3a50"/>
+    <rect x="236" y="174" width="78" height="8" rx="2" fill="#3974ee" opacity=".7"/>
+    <use href="#vents" x="398" y="168"/>
+
+    <circle cx="194" cy="254" r="5" fill="#4ade80"/>
+    <circle cx="212" cy="254" r="5" fill="#2b3a50"/>
+    <use href="#vents" x="398" y="244"/>
+  </g>
+
+  <!-- DDoS shield badge -->
+  <g transform="translate(452 52)">
+    <path d="M24 0 L46 8 V26 C46 40 36 50 24 56 C12 50 2 40 2 26 V8Z" fill="#0c1524" stroke="#7bafff" stroke-width="2"/>
+    <path d="M14 28 L21 35 L35 20" fill="none" stroke="#4ade80" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- terminal -->
+  <g>
+    <rect x="18" y="196" width="300" height="150" rx="12" fill="#0c1524" stroke="#2b3a50" stroke-width="1.5"/>
+    <path d="M18 208 a12 12 0 0 1 12 -12 h276 a12 12 0 0 1 12 12 v18 h-300z" fill="#152134"/>
+    <circle cx="36" cy="211" r="4" fill="#f87171"/>
+    <circle cx="50" cy="211" r="4" fill="#fbbf24"/>
+    <circle cx="64" cy="211" r="4" fill="#4ade80"/>
+    <text x="168" y="215" text-anchor="middle" fill="#a2b0c4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11">root@vps-1 · ssh</text>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5">
+      <text x="34" y="252" fill="#edf2fa"><tspan fill="#7bafff">$</tspan> systemctl enable --now wings</text>
+      <text x="34" y="276" fill="#edf2fa"><tspan fill="#4ade80">●</tspan> wings.service - Pterodactyl Wings</text>
+      <text x="34" y="298" fill="#a2b0c4">  Active: <tspan fill="#4ade80">active (running)</tspan></text>
+      <text x="34" y="324" fill="#edf2fa"><tspan fill="#7bafff">$</tspan> <tspan fill="#a6caff">▍</tspan></text>
+    </g>
+  </g>
+</svg>

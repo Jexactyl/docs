@@ -1,0 +1,137 @@
+---
+sidebar_position: 3.5
+sidebar_label: Wings Setup
+---
+
+import FalconBanner from '@site/src/components/FalconBanner';
+
+# Wings Setup
+
+Wings is the server control plane that runs on each of your nodes. Jexpanel tells Wings what to do,
+and Wings creates, starts and manages your game servers inside Docker containers.
+
+:::tip
+Make sure you are logged in as `root` before running these commands.
+:::
+
+## Choosing a server
+
+Wings can run on the same machine as Jexpanel, but most people run it on a separate server (a "node")
+so that game servers don't compete with the panel for resources. You can add as many nodes as you like.
+
+Because Wings relies on Docker, your server **must** support it. Most dedicated servers and **KVM**-based
+VPS plans work fine, but container-based virtualisation such as **OpenVZ** or **LXC** usually does not.
+You can check what your server uses with:
+
+```bash
+systemd-detect-virt
+```
+
+If this prints `openvz` or `lxc`, contact your host before continuing.
+
+| Operating System | Version | Is Supported? |
+|----------|----------|----------|
+| Ubuntu | `>=22.04` | ✅ |
+| Debian | `>=11` | ✅ |
+
+<FalconBanner compact />
+
+## Step One - Install Docker
+
+Docker provides an install script that works on all supported operating systems:
+
+```bash
+curl -sSL https://get.docker.com/ | CHANNEL=stable bash
+```
+
+Then make sure Docker starts when your server boots:
+
+```bash
+systemctl enable --now docker
+```
+
+## Step Two - Install Wings
+
+Create the configuration directory and download the latest Wings binary for your server's architecture:
+
+```bash
+mkdir -p /etc/pterodactyl
+curl -L -o /usr/local/bin/wings "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_$([[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
+chmod u+x /usr/local/bin/wings
+```
+
+## Step Three - Configure the node
+
+1. In your Jexpanel admin area, create a new **node**. Set its FQDN to the domain (or IP address) of the
+   server you're installing Wings on.
+2. Open the node's **Configuration** tab and copy the configuration block.
+3. Paste it into `/etc/pterodactyl/config.yml` on your node.
+
+:::info
+If your panel uses HTTPS, your node needs an SSL certificate too, or your browser will refuse to connect to it.
+The simplest option is a free certificate from Let's Encrypt:
+```bash
+apt install -y certbot
+certbot certonly --standalone -d node.example.com
+```
+Replace `node.example.com` with your node's domain.
+:::
+
+## Step Four - Test Wings
+
+Start Wings in debug mode to check that everything is configured correctly:
+
+```bash
+wings --debug
+```
+
+If Wings starts without errors and the node shows as online in your admin area, press `CTRL+C` to stop
+it and continue to the next step.
+
+## Step Five - Run Wings as a service
+
+Create a `systemd` service so that Wings runs in the background and starts on boot.
+Paste the following into `/etc/systemd/system/wings.service`:
+
+```bash
+# Wings Service File
+# ----------------------------------
+
+[Unit]
+Description=Pterodactyl Wings Daemon
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+User=root
+WorkingDirectory=/etc/pterodactyl
+LimitNOFILE=4096
+PIDFile=/var/run/wings/daemon.pid
+ExecStart=/usr/local/bin/wings
+Restart=on-failure
+StartLimitInterval=180
+StartLimitBurst=30
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start it:
+
+```bash
+systemctl enable --now wings
+```
+
+## Step Six - Add allocations
+
+Allocations are the IP and port combinations your game servers listen on. In your admin area, open the
+node's **Allocation** tab and add the ports you want to use (for example `25565-25575` for Minecraft).
+
+Make sure your firewall allows traffic on these ports, as well as the ports Wings itself uses:
+
+| Port | Used for |
+|----------|----------|
+| `8080` | Wings API (connection from Jexpanel) |
+| `2022` | SFTP access to server files |

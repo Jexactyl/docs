@@ -1,0 +1,348 @@
+/*
+ * Falcon Hosting partner banner.
+ * Colours are taken from falconhosting.co.uk's own palette and stay the same
+ * in light and dark mode. The banner is always dark, matching their hero.
+ */
+.banner {
+  --fh-bg: #0c1524;
+  --fh-card: #152134;
+  --fh-border: #2b3a50;
+  --fh-text: #edf2fa;
+  --fh-muted: #a2b0c4;
+  --fh-primary: #2459db;
+  --fh-primary-hover: #1948bc;
+  --fh-bright: #3974ee;
+  --fh-light: #7bafff;
+  --fh-eyebrow: #a6caff;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1.5rem;
+  margin: 2rem 0;
+  padding: 2rem 2.25rem;
+  border: 1px solid var(--fh-border);
+  border-radius: 1rem;
+  color: var(--fh-text);
+  background-color: var(--fh-bg);
+  background-image:
+    radial-gradient(520px at 0% 0%, rgba(57, 116, 238, 0.28), transparent 60%),
+    radial-gradient(480px at 100% 100%, rgba(123, 175, 255, 0.16), transparent 60%),
+    linear-gradient(rgba(123, 175, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(123, 175, 255, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 28px 28px, 28px 28px;
+  box-shadow: 0 18px 40px -24px rgba(12, 21, 36, 0.9);
+}
+
+/* Oversized falcon mark, faded, as a background decal */
+.decal {
+  position: absolute;
+  z-index: -1;
+  right: -6%;
+  bottom: -22%;
+  width: 62%;
+  max-width: 560px;
+  opacity: 0.05;
+  transform: rotate(-8deg);
+  pointer-events: none;
+  user-select: none;
+}
+
+.body {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.logo {
+  display: block;
+  height: 26px;
+  width: auto;
+}
+
+.partner {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(123, 175, 255, 0.35);
+  border-radius: 999px;
+  color: var(--fh-eyebrow);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 0.6rem;
+  color: var(--fh-text);
+  font-family: 'Space Grotesk', var(--ifm-heading-font-family), system-ui, sans-serif;
+  font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.title span {
+  color: var(--fh-light);
+}
+
+.lead {
+  margin: 0 0 1rem;
+  max-width: 34rem;
+  color: var(--fh-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.lead strong {
+  color: var(--fh-text);
+}
+
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.4rem;
+  padding: 0;
+  list-style: none;
+}
+
+.features li {
+  margin: 0;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--fh-border);
+  border-radius: 999px;
+  background: rgba(21, 33, 52, 0.8);
+  color: var(--fh-text);
+  font-size: 0.78rem;
+}
+
+.features li::before {
+  content: '✓';
+  margin-right: 0.35rem;
+  color: var(--fh-light);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: 0.625rem;
+  background: var(--fh-primary);
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+/* Stretch the CTA's click area over the whole banner */
+.cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.banner:has(.cta:hover) {
+  border-color: rgba(123, 175, 255, 0.45);
+}
+
+.cta:hover {
+  background: var(--fh-primary-hover);
+  color: #fff;
+  text-decoration: none;
+}
+
+.cta:hover span {
+  transform: translateX(2px);
+}
+
+.cta span {
+  transition: transform 0.15s ease;
+}
+
+.cta:focus-visible,
+.copy:focus-visible {
+  outline: 2px solid var(--fh-light);
+  outline-offset: 2px;
+}
+
+/* Coupon "ticket" decal */
+.coupon {
+  position: relative;
+  z-index: 2; /* above the stretched link so Copy still works */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 2.75rem;
+  padding: 0 0.4rem 0 0.9rem;
+  border: 1.5px dashed var(--fh-light);
+  border-radius: 0.625rem;
+  background: rgba(36, 89, 219, 0.14);
+}
+
+/* Ticket notches */
+.coupon::before,
+.coupon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fh-bg);
+  transform: translateY(-50%);
+}
+
+.coupon::before {
+  left: -6px;
+  border-right: 1.5px dashed var(--fh-light);
+}
+
+.coupon::after {
+  right: -6px;
+  border-left: 1.5px dashed var(--fh-light);
+}
+
+.couponOff {
+  color: var(--fh-eyebrow);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.couponCode {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.copy {
+  height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--fh-border);
+  border-radius: 0.45rem;
+  background: var(--fh-card);
+  color: var(--fh-text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.copy:hover {
+  background: #1a2940;
+}
+
+.art {
+  display: flex;
+  justify-content: center;
+}
+
+.art img {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+}
+
+@media (max-width: 996px) {
+  .banner {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+
+  .art {
+    order: -1;
+  }
+
+  .art img {
+    max-width: 320px;
+  }
+}
+
+@media (max-width: 600px) {
+  .art {
+    display: none;
+  }
+
+  .decal {
+    width: 110%;
+    right: -30%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta,
+  .cta span,
+  .copy {
+    transition: none;
+  }
+}
+
+/* Compact variant for docs pages */
+.compact {
+  grid-template-columns: 1fr;
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  box-shadow: none;
+}
+
+.compact .eyebrow {
+  margin-bottom: 0.6rem;
+}
+
+.compact .logo {
+  height: 22px;
+}
+
+.compact .title {
+  margin-bottom: 0.75rem;
+  font-size: 1.25rem;
+}
+
+.compact .features {
+  margin-bottom: 1rem;
+}
+
+.compact .decal {
+  width: 40%;
+  right: -4%;
+  bottom: -40%;
+}
+
+.features li.price {
+  border-color: rgba(123, 175, 255, 0.45);
+  background: rgba(36, 89, 219, 0.25);
+  font-weight: 600;
+}
+
+.features li.price::before {
+  content: none;
+}

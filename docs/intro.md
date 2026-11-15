@@ -2,6 +2,8 @@
 sidebar_position: 1
 ---
 
+import FalconBanner from '@site/src/components/FalconBanner';
+
 # Introduction
 
 Jexpanel is a *hyperfast, clean and intricate* fullstack web application built using
@@ -20,6 +22,8 @@ Want to install Jexpanel? Here are the options to get the ball rolling:
 - If you plan to **migrate from Pterodactyl v1.x**, follow the **Pterodactyl Migration** (coming soon)
 
 - If you plan to **migrate from Jexactyl v3.x**, follow the [**Jexactyl Migration**](/docs/migrate/jexactyl)
+
+<FalconBanner compact />
 
 ## Support us!
 

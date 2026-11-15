@@ -23,6 +23,11 @@ const config: Config = {
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
 
+  // Space Grotesk is used by the Falcon Hosting partner banner (matches their branding).
+  stylesheets: [
+    'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap',
+  ],
+
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
