@@ -90,7 +90,7 @@ const config: Config = {
         },
         {to: '/blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/jexactyl/jexactyl',
+          href: 'https://github.com/camwhi-te/jex',
           label: 'GitHub',
           position: 'right',
         },
