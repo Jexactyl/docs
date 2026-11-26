@@ -1,0 +1,167 @@
+---
+sidebar_position: 10
+title: Server Presets
+---
+
+# Server Presets
+
+A server preset is a saved set of resources (CPU, memory, disk) and an egg. Use it with
+[Create a server from a preset](/docs/api/application/servers#create-a-server-from-a-preset).
+`{server_preset}` is the preset's numeric `id`.
+
+## The server preset object
+
+`object` is `server_preset`. The attributes are the preset's database columns.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Preset ID. |
+| `uuid` | string | Preset UUID, generated on creation. |
+| `name` | string | Preset name. |
+| `description` | string or null | Description. |
+| `cpu` | integer | CPU limit, in percent. |
+| `memory` | integer | Memory in MiB. |
+| `disk` | integer | Disk in MiB. |
+| `nest_id` | integer or null | Nest ID. Set to `null` if the nest is deleted. Not used when creating a server from the preset. |
+| `egg_id` | integer or null | Egg ID. Set to `null` if the egg is deleted. |
+| `created_at` | string | Timestamp, for example `2026-11-26T10:15:00.000000Z`. |
+| `updated_at` | string | Timestamp, same format as `created_at`. |
+
+Server presets have no includes.
+
+## List server presets
+
+`GET /api/application/servers/presets`
+
+**Admin permission:** `server-presets.read`
+
+Returns a paginated list of server presets.
+
+```bash
+curl "https://panel.example.com/api/application/servers/presets?sort=name" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the preset ID. |
+| `filter[uuid]` | string | No | Partial match on the UUID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `sort` | string | No | `id`, `uuid`, `name`, `cpu`, `memory`, `disk`, `nest_id` or `egg_id`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `search` | string | No | Validated (up to 100 characters) but not used for anything. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server_preset",
+      "attributes": {
+        "id": 1,
+        "uuid": "9f2b6c1e-0d4a-4b7e-8c3f-5a6b7c8d9e0f",
+        "name": "Starter",
+        "description": "2 GB Minecraft server",
+        "cpu": 100,
+        "memory": 2048,
+        "disk": 5120,
+        "nest_id": 1,
+        "egg_id": 3,
+        "created_at": "2026-11-26T10:15:00.000000Z",
+        "updated_at": "2026-11-26T10:15:00.000000Z"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## Get a server preset
+
+`GET /api/application/servers/presets/{server_preset}`
+
+**Admin permission:** `server-presets.read`
+
+Returns a single server preset.
+
+### Response
+
+`200 OK`. The body is a single `server_preset` object.
+
+## Create a server preset
+
+`POST /api/application/servers/presets`
+
+**Admin permission:** `server-presets.create`
+
+Creates a server preset. A UUID is generated automatically.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1 to 191 characters. |
+| `description` | string or null | No | Description. |
+| `cpu` | number | Yes | Minimum `0`. |
+| `memory` | number | Yes | Minimum `0`. |
+| `disk` | number | Yes | Minimum `0`. |
+| `nest_id` | integer or null | No | ID of an existing nest. |
+| `egg_id` | integer or null | No | ID of an existing egg. Not checked against `nest_id`. |
+
+Logs the activity event `admin:server_presets:create`.
+
+### Response
+
+`200 OK`. The body is the created `server_preset` object.
+
+## Update a server preset
+
+`PATCH /api/application/servers/presets/{server_preset}`
+
+**Admin permission:** `server-presets.update`
+
+Updates a server preset. The body uses the same fields and rules as [Create a server preset](#create-a-server-preset).
+
+:::caution
+This endpoint replaces every field. `description`, `nest_id` and `egg_id` are set to `null` if you leave them out.
+Send all fields on every update.
+:::
+
+Logs the activity event `admin:server_presets:update`.
+
+### Response
+
+`200 OK`. The body is the updated `server_preset` object.
+
+## Delete a server preset
+
+`DELETE /api/application/servers/presets/{server_preset}`
+
+**Admin permission:** `server-presets.delete`
+
+Deletes a server preset. Servers already created from it are not affected.
+
+Logs the activity event `admin:server_presets:delete`.
+
+### Response
+
+`204 No Content`

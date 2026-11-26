@@ -1,0 +1,320 @@
+---
+sidebar_position: 15
+title: Nests
+---
+
+# Nests
+
+A nest is a group of [eggs](/docs/api/application/eggs). These endpoints manage nests, list the eggs in a nest, and
+import eggs into a nest.
+
+In every path, `{nest}` is the nest's numeric `id`.
+
+## The nest object
+
+```json
+{
+  "object": "nest",
+  "attributes": {
+    "id": 1,
+    "uuid": "5f1c3a2b-7d8e-4f60-9a1b-2c3d4e5f6a7b",
+    "author": "support@example.com",
+    "name": "Minecraft",
+    "description": "Minecraft - the classic game from Mojang.",
+    "created_at": "2026-11-20T14:02:11+00:00",
+    "updated_at": "2026-11-20T14:02:11+00:00"
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Nest ID. |
+| `uuid` | string | Nest UUID. |
+| `author` | string | Author email address. Set when the nest is created and never changed. |
+| `name` | string | Name. |
+| `description` | string or null | Description. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+
+**Includes:** `eggs` (the nest's eggs, as [egg](/docs/api/application/eggs#the-egg-object) objects) and `servers`
+(servers using the nest, as `server` objects). See [includes](/docs/api/introduction#including-related-resources).
+
+## List nests
+
+`GET /api/application/nests`
+
+**Admin permission:** `nests.read`
+
+Returns a paginated list of nests.
+
+```bash
+curl "https://panel.example.com/api/application/nests?include=eggs" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Up to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the nest ID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `filter[author]` | string | No | Partial match on the author. |
+| `sort` | string | No | `id`, `name` or `author`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `eggs`, `servers`. |
+
+Filters are case-insensitive substring matches. A comma-separated value matches any of the values.
+
+A `per_page` above 100 is rejected with `400`. A `per_page` of `0` or less returns every nest without pagination
+(no `meta` block).
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "nest",
+      "attributes": {
+        "id": 1,
+        "uuid": "5f1c3a2b-7d8e-4f60-9a1b-2c3d4e5f6a7b",
+        "author": "support@example.com",
+        "name": "Minecraft",
+        "description": "Minecraft - the classic game from Mojang.",
+        "created_at": "2026-11-20T14:02:11+00:00",
+        "updated_at": "2026-11-20T14:02:11+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+## Get a nest
+
+`GET /api/application/nests/{nest}`
+
+**Admin permission:** `nests.read`
+
+Returns one nest.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `eggs`, `servers`. |
+
+### Response
+
+`200 OK`
+
+A [nest object](#the-nest-object).
+
+## List eggs in a nest
+
+`GET /api/application/nests/{nest}/eggs`
+
+**Admin permission:** `eggs.read`
+
+Returns a paginated list of the eggs in the nest.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Up to 100. Defaults to `50`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the egg ID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `filter[author]` | string | No | Partial match on the author. |
+| `sort` | string | No | `id`, `name` or `author`, optionally prefixed with `-`. |
+| `include` | string | No | `config`, `nest`, `script`, `servers`, `variables`. See [eggs](/docs/api/application/eggs#the-egg-object). |
+
+As with [list nests](#list-nests), a `per_page` above 100 is rejected with `400`, and a `per_page` of `0` or less
+returns every egg in the nest without pagination.
+
+### Response
+
+`200 OK`
+
+A list of [egg objects](/docs/api/application/eggs#the-egg-object) with `meta.pagination`.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "egg",
+      "attributes": {
+        "id": 3,
+        "uuid": "9e0a7b5c-3d2f-4a18-8b6c-1d2e3f4a5b6c",
+        "name": "Paper",
+        "nest_id": 1,
+        "...": "see the egg object"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 50,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+## Create a nest
+
+`POST /api/application/nests`
+
+**Admin permission:** `nests.create`
+
+Creates a nest. Logs the activity event `admin:nests:create`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 191 characters. |
+| `description` | string | No | Can be `null`. |
+| `author` | string | No | Must be a valid email address. Can be `null`. If missing or `null`, the author is the `APP_SERVICE_AUTHOR` value from the Panel's `.env` file (default `unknown@unknown.com`). |
+
+### Response
+
+`200 OK` (not `201`)
+
+A [nest object](#the-nest-object).
+
+## Import an egg
+
+`POST /api/application/nests/{nest}/import`
+
+**Admin permission:** `eggs.import`
+
+Creates a new egg in the nest from an egg export file. It always creates a new egg, even if an egg with the same name
+or UUID exists. The new egg gets a new UUID. Logs the activity event `admin:nests:import`.
+
+### Request body
+
+The raw egg file is the request body. It is not a multipart upload and not wrapped in a JSON field. Set the
+`Content-Type` header to say which format it is:
+
+| `Content-Type` starts with | Body is parsed as |
+|-----------------------------|-------------------|
+| `application/json` | JSON |
+| `application/yaml` | YAML |
+
+Any other content type, or no `Content-Type` header, is rejected with `400` and the detail `unknown content type`.
+
+```bash
+curl -X POST "https://panel.example.com/api/application/nests/1/import" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  --data-binary @egg-paper.json
+```
+
+The parsed document must have `meta.version` set to `PTDL_v1` or `PTDL_v2`. The Panel reads these keys:
+
+| Key | Stored as |
+|-----|-----------|
+| `name` | Egg name. |
+| `author` | Egg author. Must be a valid email address. |
+| `description` | Description. |
+| `features` | Features. |
+| `docker_images` | Docker images. For `PTDL_v1` files, built from `images` (or the single `image`) instead, as an object mapping each image to itself. |
+| `file_denylist` | File denylist. Empty entries are removed. |
+| `meta.update_url` | Update URL. |
+| `config.files` | Configuration files. A JSON **string**. |
+| `config.startup` | Startup detection. A JSON **string**. |
+| `config.stop` | Stop command. |
+| `startup` | Startup command. |
+| `scripts.installation.script` | Install script. |
+| `scripts.installation.entrypoint` | Install script entrypoint. |
+| `scripts.installation.container` | Install script container image. |
+| `variables` | One egg variable is created per entry. Each entry's keys are written to the variable as is (`field_type` is dropped). `PTDL_v1` files must include `variables`. |
+
+The egg is checked against the egg model's rules when it is saved: `name`, `author` (an email), `docker_images` (at
+least one), `startup`, `config.files`, `config.startup` and `config.stop` are all needed, and `config.files` and
+`config.startup` must be valid JSON strings. A file exported with [export an egg](/docs/api/application/eggs#export-an-egg)
+meets these rules.
+
+### Response
+
+`200 OK`
+
+The new egg, reloaded from the database, as an [egg object](/docs/api/application/eggs#the-egg-object).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The document is not an object, or `meta.version` is missing or not `PTDL_v1`/`PTDL_v2`. `detail` is `The JSON file provided is not in a format that can be recognized.` |
+| `400` | The YAML could not be parsed. `detail` is `There was an error while attempting to parse the YAML: <parser message>.` |
+| `400` | The JSON could not be parsed. This is caught before the controller runs; see [request headers](/docs/api/introduction#request-headers). |
+| `500` | The egg or one of its variables failed the model's validation rules (`code` is `DataValidationException`), or a variable entry contains a key that is not a column. Nothing is saved. |
+
+## Update a nest
+
+`PATCH /api/application/nests/{nest}`
+
+**Admin permission:** `nests.update`
+
+Updates a nest's name and description. Logs the activity event `admin:nests:update`, with the raw request body in the
+`new_data` property.
+
+### Request body
+
+JSON body. `name` is required even though the method is `PATCH`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 191 characters. |
+| `description` | string | No | Can be `null`. |
+| `author` | string | No | If sent, must be a valid email address or `null`. Ignored: a nest's author cannot be changed. |
+
+### Response
+
+`200 OK`
+
+The updated [nest object](#the-nest-object).
+
+## Delete a nest
+
+`DELETE /api/application/nests/{nest}`
+
+**Admin permission:** `nests.delete`
+
+Deletes a nest. Its eggs, and their variables, are deleted with it by the database. Logs the activity event
+`admin:nests:delete`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | A server uses the nest. `detail` is `A Nest with active servers attached to it cannot be deleted from the Panel.` |

@@ -1,0 +1,359 @@
+---
+sidebar_position: 3
+title: Two-Factor & Passkeys
+---
+
+# Two-Factor & Passkeys
+
+These endpoints enrol and remove TOTP two-factor authentication and WebAuthn passkeys on your own account.
+
+All endpoints on this page stay available when the Panel requires two-factor authentication and you have not
+enrolled yet, so an account can always set it up. See [two-factor enforcement](/docs/api/introduction#two-factor-enforcement).
+None of them need a subuser permission.
+
+## Get a TOTP setup secret
+
+`GET /api/client/account/two-factor`
+
+Generates a new TOTP secret for the account and returns it with an `otpauth://` URI to show as a QR code.
+Two-factor is **not** enabled yet. Call [Enable two-factor](#enable-two-factor) with a code from the
+authenticator app to turn it on.
+
+Each call generates and stores a new secret, replacing the previous one.
+
+```bash
+curl "https://panel.example.com/api/client/account/two-factor" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "data": {
+    "image_url_data": "otpauth://totp/Jexpanel:jane%40example.com?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=Jexpanel",
+    "secret": "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `data.image_url_data` | An `otpauth://totp/` URI. The label and issuer are the Panel's name (`APP_NAME`) with all whitespace removed, followed by the account email. Encode it as a QR code for the user to scan. |
+| `data.secret` | The 32 character base32 secret, for manual entry. |
+
+This response does not use the `object`/`attributes` envelope.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | Two-factor is already enabled. `detail`: `Two-factor authentication is already enabled on this account.` |
+
+## Enable two-factor
+
+`POST /api/client/account/two-factor`
+
+Verifies a TOTP code against the secret from [Get a TOTP setup secret](#get-a-totp-setup-secret) and enables
+two-factor on the account. Returns 10 new recovery tokens. Any existing recovery tokens are deleted.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | string | Yes | The 6 digit code from the authenticator app. Must be a string of exactly 6 characters, so send `"123456"`, not `123456`. |
+| `password` | string | Yes | Your current password. |
+
+The code is accepted within a window of `APP_2FA_WINDOW` (default `4`) time steps either side of the current one.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "recovery_tokens",
+  "attributes": {
+    "tokens": [
+      "Xk2mP9qL7v",
+      "a8Df0QwZ3n",
+      "pL4sT9rB2c",
+      "Gm7hY1uK5e",
+      "Vn3xC8jW0q",
+      "eR6tZ2bN9m",
+      "Qy5wH1oL4f",
+      "Jd8kS3vA7g",
+      "Tz0pU6iM2r",
+      "Bc9nF4xE1y"
+    ]
+  }
+}
+```
+
+`tokens` holds 10 random 10 character strings. They are stored hashed and are shown only in this response. Each one
+can be used once in place of a TOTP code at login.
+
+Logs the activity event `user:two-factor.create`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The password is wrong. `detail`: `The password provided was not valid.` |
+| `400` | Two-factor is already enabled. `detail`: `Two-factor authentication is already enabled on this account.` |
+| `400` | No secret has been generated yet. `detail`: `Two-factor authentication has not been set up on this account. Request a new secret and try again.` |
+| `400` | The code does not match. `detail`: `The provided two-factor authentication token was not valid.` |
+
+The checks run in the order listed: password, then already enabled, then missing secret, then the code.
+
+:::caution
+Accounts created through an SSO module have no password, so they always receive the "password provided was not
+valid" error.
+:::
+
+## Disable two-factor
+
+`POST /api/client/account/two-factor/disable`
+
+Disables TOTP two-factor on the account. Only the password is needed, not a TOTP code. All of the account's recovery
+tokens are deleted.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `password` | string | Yes | Your current password. Not validated as a field: a missing value is treated as an empty password. |
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `user:two-factor.delete`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The password is wrong or missing. `detail`: `The password provided was not valid.` |
+
+## List passkeys
+
+`GET /api/client/account/passkeys`
+
+Returns every passkey registered to the account. The list is not paginated.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "passkey",
+      "attributes": {
+        "uuid": "0b6f2c1e-7a3d-4e59-9c8b-1f2a3b4c5d6e",
+        "name": "MacBook Touch ID",
+        "last_used_at": "2026-11-21T08:15:02+00:00",
+        "created_at": "2026-10-03T19:44:10+00:00"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `uuid` | string | Identifies the passkey. Use it to remove the passkey. |
+| `name` | string | The name given when it was registered. |
+| `last_used_at` | string or null | ISO 8601. When the passkey was last used to sign in, or `null` if never. |
+| `created_at` | string | ISO 8601. |
+
+The credential itself is never returned.
+
+## Start passkey registration
+
+`POST /api/client/account/passkeys/options`
+
+Starts a WebAuthn registration ceremony. Returns the options to pass to the browser's
+`navigator.credentials.create()`. The Panel keeps the options for **300 seconds**, keyed to your account. Starting
+a new ceremony replaces any one in progress.
+
+The password is checked here, before the user is asked to touch their authenticator.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `password` | string | Yes, if the account has a password | Your current password. Not validated as a field. Accounts created through an SSO module have no password, and for them this field is ignored. |
+
+### Response
+
+`200 OK`
+
+The body is a `PublicKeyCredentialCreationOptionsJSON` object, serialised by the `web-auth/webauthn-lib` library
+(5.x) with every `null` member removed. It does not use the `object`/`attributes` envelope. Binary values
+(`challenge`, `user.id`, credential IDs) are base64url encoded without padding.
+
+```json
+{
+  "rp": {
+    "name": "Jexpanel",
+    "id": "panel.example.com"
+  },
+  "user": {
+    "name": "jane@example.com",
+    "id": "NWQyZjZhOGUtM2E0Yi00YzFkLTllN2YtMGExYjJjM2Q0ZTVm",
+    "displayName": "jane"
+  },
+  "challenge": "q9F0bXo3cW1lVnR6S2VjS1JXZ1N0eGJ4bG5VdW1wQUE",
+  "pubKeyCredParams": [
+    { "type": "public-key", "alg": -7 },
+    { "type": "public-key", "alg": -257 }
+  ],
+  "timeout": 60000,
+  "excludeCredentials": [
+    { "type": "public-key", "id": "pX3n0b1Yd2wq8m7K5c4V9z0Lh6Rt2sUe" }
+  ],
+  "authenticatorSelection": {
+    "requireResidentKey": true,
+    "userVerification": "required",
+    "residentKey": "required"
+  },
+  "attestation": "none"
+}
+```
+
+What the Panel sets:
+
+| Member | Value |
+|--------|-------|
+| `rp.id` | `WEBAUTHN_RP_ID` if set, otherwise the host of `APP_URL`. |
+| `rp.name` | `WEBAUTHN_RP_NAME` if set, otherwise `APP_NAME`. |
+| `user.name` | The account email. |
+| `user.id` | The account UUID (the 36 character string), base64url encoded. |
+| `user.displayName` | The account username. |
+| `challenge` | 32 random bytes. |
+| `pubKeyCredParams` | ES256 (`-7`) and RS256 (`-257`). |
+| `timeout` | `WEBAUTHN_TIMEOUT` in milliseconds, default `60000`. |
+| `excludeCredentials` | The account's existing passkeys, so the same authenticator is not registered twice. |
+| `authenticatorSelection` | User verification required and a resident (discoverable) key required. No authenticator attachment is set, so both platform authenticators and security keys work. |
+| `attestation` | `none`. |
+
+The exact set of optional members (for example whether `excludeCredentials` is present when the account has no
+passkeys) is decided by the library's serialiser.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The account has a password and the one given is wrong or missing. `detail`: `The password provided was not valid.` |
+
+## Finish passkey registration
+
+`POST /api/client/account/passkeys`
+
+Verifies the credential the browser created and saves it as a passkey. The ceremony started by
+[Start passkey registration](#start-passkey-registration) is consumed by this call, whether it succeeds or fails.
+Start a new ceremony to try again.
+
+The credential is checked against the stored options. Its origin must be exactly `APP_URL` (without a trailing
+slash), and its relying party ID must match `rp.id`. Only `none` attestation is supported.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | A name for the passkey. At most 191 characters. |
+| `credential` | object | Yes | The registration result as JSON, as produced by `PublicKeyCredential.toJSON()` or by `startRegistration()` in `@simplewebauthn/browser` (which the Panel's frontend uses). |
+
+The `credential` object follows the WebAuthn `RegistrationResponseJSON` format. Binary values are base64url encoded:
+
+```json
+{
+  "name": "MacBook Touch ID",
+  "credential": {
+    "id": "pX3n0b1Yd2wq8m7K5c4V9z0Lh6Rt2sUe",
+    "rawId": "pX3n0b1Yd2wq8m7K5c4V9z0Lh6Rt2sUe",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoi...",
+      "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVi...",
+      "transports": ["internal", "hybrid"]
+    },
+    "clientExtensionResults": {},
+    "authenticatorAttachment": "platform"
+  }
+}
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "passkey",
+  "attributes": {
+    "uuid": "0b6f2c1e-7a3d-4e59-9c8b-1f2a3b4c5d6e",
+    "name": "MacBook Touch ID",
+    "last_used_at": null,
+    "created_at": "2026-11-26T10:31:55+00:00"
+  }
+}
+```
+
+Logs the activity event `user:passkey.create` with the property `name`.
+
+### Errors
+
+All of these are `400` responses with code `BadRequestHttpException`.
+
+| `detail` | When |
+|----------|------|
+| `No passkey registration is currently in progress.` | No ceremony was started, it expired after 300 seconds, or it was already used. |
+| `The credential provided was malformed.` | `credential` could not be parsed as a WebAuthn credential. |
+| `The credential provided was not a registration response.` | `credential` is an authentication (assertion) response. |
+| `The passkey could not be verified: <reason>` | Verification failed, for example a wrong origin, challenge or relying party ID. `<reason>` is the library's message. |
+| `That passkey is already registered to an account.` | The credential ID is already stored, on any account. |
+
+## Remove a passkey
+
+`POST /api/client/account/passkeys/remove`
+
+Deletes one of your passkeys.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uuid` | string | Yes | The passkey's `uuid`. |
+| `password` | string | Yes, if the account has a password | Your current password. Not validated as a field. Ignored for accounts without a password. |
+
+### Response
+
+`204 No Content`
+
+If no passkey on your account has that `uuid`, nothing is deleted and the response is still `204`.
+
+When a passkey is deleted, logs the activity event `user:passkey.delete` with the property `name`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The account has a password and the one given is wrong or missing. `detail`: `The password provided was not valid.` |

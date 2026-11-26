@@ -1,0 +1,183 @@
+---
+sidebar_position: 19
+title: Server Upgrades
+---
+
+# Server Upgrades
+
+These endpoints let you move a billable server to a more expensive product, paying a pro-rated one-time charge
+through Stripe Checkout.
+
+All three endpoints need **both** of these settings enabled. If either is off, they respond with `403`
+(`AccessDeniedHttpException`):
+
+- the billing module (`BILLING_ENABLED`), and
+- billing upgrades (`BILLING_ALLOW_UPGRADES`, default `true`).
+
+The server owner and root administrators can always call these endpoints. Subusers need the subuser permission
+listed on each endpoint. The usual server state checks apply, so a suspended server, or a server on a node under
+maintenance, returns `409`.
+
+The server must have been created from a billing product (`billing_product_id` set). Otherwise these endpoints
+return `404`.
+
+## List upgrade options
+
+`GET /api/client/servers/{server}/upgrade`
+
+**Subuser permission:** `billing.read`
+
+Returns the products in the **same category** as the server's current product whose price is strictly higher than
+the current product's price. The list is not paginated.
+
+```bash
+curl https://panel.example.com/api/client/servers/1a2b3c4d/upgrade \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "product",
+      "attributes": {
+        "id": 4,
+        "name": "Pro",
+        "icon": null,
+        "price": 9.99,
+        "category_id": 1,
+        "category_uuid": "6f1c2a8e-1b7e-4b52-9d0f-2f6d7e1a9c11",
+        "description": "4 GB RAM, 40 GB disk",
+        "egg_id": 5,
+        "limits": {
+          "cpu": 200,
+          "memory": 4096,
+          "disk": 40960,
+          "backup": 4,
+          "database": 2,
+          "allocation": 2
+        }
+      }
+    }
+  ]
+}
+```
+
+The attributes are described under [List products in a category](/docs/api/client/billing#list-products-in-a-category).
+
+## Get the upgrade charge
+
+`POST /api/client/servers/{server}/upgrade/charge`
+
+**Subuser permission:** `billing.update`
+
+Calculates the one-time charge for upgrading to a product, without creating anything.
+
+The charge is the price difference, pro-rated by the time left until the server's renewal date, accurate to the
+minute:
+
+```text
+charge = round((new price - current price) * (minutes until renewal_date / (renewal days * 24 * 60)), 2)
+```
+
+`renewal days` is the billing renewal period setting (`BILLING_RENEWAL_DAYS`, default `30`). If the renewal date has
+already passed, the charge is `0`.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `product_id` | integer | Yes | ID of an existing product in the same category as the current product. Its price must be higher than the current product's price. |
+
+### Response
+
+`200 OK`
+
+This is a plain JSON object, not a resource envelope.
+
+```json
+{
+  "charge": 3.33
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `charge` | number | The pro-rated amount in the billing currency's major units, rounded to 2 decimal places. |
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You can only upgrade to a plan in the same category.` |
+| `400` | `You cannot upgrade to a cheaper plan.` The new product's price is equal to or lower than the current one. |
+
+## Start an upgrade
+
+`POST /api/client/servers/{server}/upgrade`
+
+**Subuser permission:** `billing.update`
+
+Creates a Stripe Checkout Session for the pro-rated charge and a `pending` upgrade order linked to the server, and
+returns the Checkout Session URL. Nothing about the server changes yet.
+
+After the customer pays, complete the upgrade with
+[`POST /api/client/billing/stripe/process`](/docs/api/client/billing#process-a-stripe-checkout-session), passing the
+Checkout Session ID. That call replaces the server's product (`billing_product_id`) and its CPU, memory, disk,
+allocation, backup and database limits with the new product's values. The renewal date does not change.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `product_id` | integer | Yes | ID of an existing product in the same category as the current product. Its price must be higher than the current product's price. |
+
+### Checks
+
+1. **Cooldown.** The Panel finds your most recent `processed` `upgrade` order, on any of your servers. If it was
+   created fewer than `BILLING_RENEWAL_DAYS` days ago, the request fails. Pending and failed upgrade orders (for
+   example, an abandoned checkout) do not count.
+2. The new product must be in the same category as the current product.
+3. The new product's price must be higher than the current product's price.
+4. The pro-rated charge must be greater than `0`. It is `0` when the server's renewal date has passed, in which case
+   the server must be renewed first.
+
+### What the Panel sends to Stripe
+
+The Checkout Session is created the same way as for a purchase (see
+[What the Panel sends to Stripe](/docs/api/client/billing#what-the-panel-sends-to-stripe)), with one line item named
+after the **new** product and priced at the pro-rated charge. No deployment fee is added. The session `metadata` is:
+
+| Metadata key | Value |
+|--------------|-------|
+| `user_id` | Your user ID. |
+| `customer_email` | Your email. |
+| `product_id` | The new product's ID. |
+| `server_id` | The server's internal ID. |
+| `order_type` | `upgrade` |
+
+The order is created with `type` `upgrade`, `status` `pending`, `transaction_id` set to the Checkout Session ID,
+`product_id` set to the new product, `total` set to the pro-rated charge, and `metadata` `null`.
+
+### Response
+
+`200 OK` with `Content-Type: text/html`. The body is the Stripe Checkout Session URL as **plain text**, not JSON:
+
+```text
+https://checkout.stripe.com/c/pay/cs_test_a1B2c3D4...
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You must wait <days> days between server upgrades.` The cooldown has not passed. `<days>` is the renewal days setting. |
+| `400` | `You can only upgrade to a plan in the same category.` |
+| `400` | `You cannot upgrade to a cheaper plan.` |
+| `400` | `This server must be renewed before it can be upgraded.` The pro-rated charge is `0`. |

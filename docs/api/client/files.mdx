@@ -1,0 +1,502 @@
+---
+sidebar_position: 11
+title: Files
+---
+
+# Files
+
+These endpoints manage the files of a server. The Panel forwards each request to the Wings daemon on the server's node,
+which does the actual file work. All paths are relative to the server's root directory.
+
+All endpoints on this page are blocked while the server is suspended, installing, restoring a backup, being
+transferred, or its node is in maintenance. See [server state and availability](/docs/api/client/servers#server-state-and-availability).
+
+## Paths and encoding
+
+- **Query parameters.** `file` and `directory` are sent in the query string on `GET` requests, and `file` on
+  `POST .../files/write`. URL-encode them as query values. In particular, encode `+` as `%2B`, because PHP decodes a
+  bare `+` in a query string as a space. Also encode `&`, `#`, `%` and spaces.
+- **Whitespace.** The Panel normally trims leading and trailing whitespace from every string input. For file
+  endpoints, trimming is turned off so that names such as `"folder "` work. This applies whichever form of `{server}`
+  you use (full UUID, short UUID or `serv_` identifier), to both query and JSON body values.
+- **Empty strings.** An empty string is converted to `null` before validation. For fields described below as
+  "required", that means an empty string fails validation.
+
+## Errors from Wings
+
+If Wings rejects a request (for example, the file does not exist or the path is outside the server's directory), the
+Panel returns Wings' status code. For `4xx` responses the `detail` is
+`An error occurred on the remote host: <Wings error>. (request id: <id>)`. If the node cannot be reached, the response
+is `504` with `Could not establish a connection to the machine running this server. Please try again.` These cases are
+not repeated for each endpoint below.
+
+## List a directory
+
+`GET /api/client/servers/{server}/files/list`
+
+**Subuser permission:** `file.read`
+
+Lists the contents of a directory. Wings receives `GET /api/servers/<uuid>/files/list-directory?directory=<directory>`.
+The list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997-259b-452e-8b4e-cecc464142ca/files/list?directory=%2Fplugins" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `directory` | string | No | The directory to list. Defaults to `/`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "file_object",
+      "attributes": {
+        "name": "server.properties",
+        "mode": "-rw-r--r--",
+        "mode_bits": "644",
+        "size": 1342,
+        "is_file": true,
+        "is_symlink": false,
+        "mimetype": "text/plain",
+        "created_at": "2026-11-20T09:00:00Z",
+        "modified_at": "2026-11-26T10:12:02Z"
+      }
+    },
+    {
+      "object": "file_object",
+      "attributes": {
+        "name": "world",
+        "mode": "drwxr-xr-x",
+        "mode_bits": "755",
+        "size": 4096,
+        "is_file": false,
+        "is_symlink": false,
+        "mimetype": "inode/directory",
+        "created_at": "2026-11-20T09:00:00Z",
+        "modified_at": "2026-11-26T10:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+The attributes map Wings' file fields as follows:
+
+| Attribute | From Wings | Default if Wings omits it |
+|-----------|-----------|---------------------------|
+| `name` | `name` | `null` |
+| `mode` | `mode` | `null` |
+| `mode_bits` | `mode_bits` | `null` |
+| `size` | `size` (bytes) | `null` |
+| `is_file` | `file` | `true` |
+| `is_symlink` | `symlink` | `false` |
+| `mimetype` | `mime` | `application/octet-stream` |
+| `created_at` | `created` | The current time |
+| `modified_at` | `modified` | The current time |
+
+`created_at` and `modified_at` are ISO 8601 date-times in UTC.
+
+## Get file contents
+
+`GET /api/client/servers/{server}/files/contents`
+
+**Subuser permission:** `file.read-content`
+
+Returns the raw contents of a file. Wings receives `GET /api/servers/<uuid>/files/contents?file=<file>`. Logs the
+activity event `server:file.read`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file` | string | Yes | Path of the file. |
+
+### Response
+
+`200 OK` with `Content-Type: text/plain` and the file contents as the body. The body is not JSON.
+
+```text
+motd=A Minecraft Server
+max-players=20
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The file is larger than the Panel's edit limit. `detail` is `The file you are attempting to open is too large to view in the file editor.` The limit is `PTERODACTYL_FILES_MAX_EDIT_SIZE` bytes, default `4194304` (4 MiB). It is checked against the `Content-Length` Wings sends. |
+
+## Get a download link
+
+`GET /api/client/servers/{server}/files/download`
+
+**Subuser permission:** `file.read-content`
+
+Returns a signed URL that downloads the file directly from Wings. The Panel does not contact Wings for this request.
+Logs the activity event `server:file.download`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file` | string | Yes | Path of the file. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "signed_url",
+  "attributes": {
+    "url": "https://node1.example.com:8080/download/file?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+  }
+}
+```
+
+The URL is the node's connection address (`scheme://fqdn:public_port_http`) followed by `/download/file?token=<jwt>`.
+Make a plain `GET` request to it; no `Authorization` header is needed. The JWT expires **15 minutes** after it is
+issued and has the scope `file-download`. Its claims include `file_path` (the `file` value as received), `server_uuid`,
+`user_uuid` and `user_id`.
+
+## Get an upload link
+
+`GET /api/client/servers/{server}/files/upload`
+
+**Subuser permission:** `file.create`
+
+Returns a signed URL for uploading files directly to Wings. The Panel does not contact Wings for this request.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "signed_url",
+  "attributes": {
+    "url": "https://node1.example.com:8080/upload/file?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+  }
+}
+```
+
+The JWT expires **15 minutes** after it is issued, has the scope `file-upload`, and includes the `server_uuid`,
+`user_uuid` and `user_id` claims. It is not tied to a directory.
+
+To upload, send a `multipart/form-data` `POST` to the URL with the file in a field named `files`, and the target
+directory in a `directory` query parameter (this is what the Panel's own file manager does):
+
+```bash
+curl -X POST "$UPLOAD_URL&directory=%2Fplugins" \
+  -F "files=@./MyPlugin.jar"
+```
+
+Wings enforces the node's upload size limit (the node's `upload_size` setting).
+
+## Rename or move files
+
+`PUT /api/client/servers/{server}/files/rename`
+
+**Subuser permission:** `file.update`
+
+Renames or moves one or more files. `from` and `to` are relative to `root`; use a `to` in another directory to move a
+file. Wings receives `PUT /api/servers/<uuid>/files/rename` with `root` and `files`. Logs the activity event
+`server:file.rename`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `root` | string | Yes | The directory the paths are relative to. Must be a non-empty string; send `/` for the server root. |
+| `files` | array of objects | Yes | The renames to perform. |
+| `files[].from` | string | Yes | Current name or path. |
+| `files[].to` | string | Yes | New name or path. |
+
+```json
+{
+  "root": "/",
+  "files": [
+    { "from": "server.properties", "to": "server.properties.bak" },
+    { "from": "old-plugin.jar", "to": "plugins/disabled/old-plugin.jar" }
+  ]
+}
+```
+
+### Response
+
+`204 No Content`
+
+## Copy a file
+
+`POST /api/client/servers/{server}/files/copy`
+
+**Subuser permission:** `file.create`
+
+Creates a copy of a file in the same directory, under a new name chosen by Wings. Wings receives
+`POST /api/servers/<uuid>/files/copy` with `{"location": "<location>"}`. Logs the activity event `server:file.copy`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `location` | string | Yes | Full path of the file to copy. |
+
+```json
+{ "location": "/config/settings.yml" }
+```
+
+### Response
+
+`204 No Content`
+
+## Write a file
+
+`POST /api/client/servers/{server}/files/write`
+
+**Subuser permission:** `file.create`
+
+Creates a file, or replaces the contents of an existing file. The path goes in the **query string** and the request
+**body is the raw file contents**, not JSON. An empty body creates or truncates the file to zero bytes. Wings
+receives `POST /api/servers/<uuid>/files/write?file=<file>` with the same body. Logs the activity event
+`server:file.write`.
+
+Note that writing to an existing file needs `file.create`, not `file.update`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file` | string | Yes | Path of the file to write. |
+
+### Request body
+
+The raw file contents. Send a non-JSON `Content-Type`, such as `text/plain` (the Panel's own editor does this). With
+`Content-Type: application/json`, the Panel tries to parse the body as JSON and rejects anything that isn't valid JSON
+with `400`.
+
+```bash
+curl -X POST "https://panel.example.com/api/client/servers/1a7ce997-259b-452e-8b4e-cecc464142ca/files/write?file=%2Fserver.properties" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json" \
+  -H "Content-Type: text/plain" \
+  --data-binary @server.properties
+```
+
+### Response
+
+`204 No Content`
+
+## Compress files
+
+`POST /api/client/servers/{server}/files/compress`
+
+**Subuser permission:** `file.archive`
+
+Creates an archive containing the given files and directories, in `root`. Wings chooses the archive's name. Wings
+receives `POST /api/servers/<uuid>/files/compress` with `root` and `files`. The Panel waits up to 15 minutes for Wings
+to finish. Logs the activity event `server:file.compress`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `root` | string or null | No | The directory the file names are relative to. Defaults to `/`. |
+| `files` | array of strings | Yes | Names of the files and directories to include. |
+
+```json
+{ "root": "/", "files": ["world", "world_nether"] }
+```
+
+### Response
+
+`200 OK`
+
+A single `file_object` for the created archive, in the same format as [List a directory](#list-a-directory).
+
+```json
+{
+  "object": "file_object",
+  "attributes": {
+    "name": "archive-2026-11-26T101530Z.tar.gz",
+    "mode": "-rw-r--r--",
+    "mode_bits": "644",
+    "size": 52428800,
+    "is_file": true,
+    "is_symlink": false,
+    "mimetype": "application/gzip",
+    "created_at": "2026-11-26T10:15:30Z",
+    "modified_at": "2026-11-26T10:15:30Z"
+  }
+}
+```
+
+## Decompress an archive
+
+`POST /api/client/servers/{server}/files/decompress`
+
+**Subuser permission:** `file.create`
+
+Extracts an archive into `root`. This needs `file.create`, not `file.archive`. Wings receives
+`POST /api/servers/<uuid>/files/decompress` with `root` and `file`. The Panel waits up to 15 minutes for Wings to
+finish. Logs the activity event `server:file.decompress`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `root` | string or null | No | The directory containing the archive, and where it is extracted. Defaults to `/`. |
+| `file` | string | Yes | Name of the archive, relative to `root`. |
+
+```json
+{ "root": "/", "file": "modpack.zip" }
+```
+
+### Response
+
+`204 No Content`
+
+## Delete files
+
+`POST /api/client/servers/{server}/files/delete`
+
+**Subuser permission:** `file.delete`
+
+Deletes files and directories. Wings receives
+`POST /api/servers/<uuid>/files/delete` with `root` and `files`. Logs the activity event `server:file.delete`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `root` | string | Yes | The directory the file names are relative to. Must be a non-empty string; send `/` for the server root. |
+| `files` | array of strings | Yes | Names of the files and directories to delete. |
+
+```json
+{ "root": "/plugins", "files": ["old.jar", "old-config"] }
+```
+
+### Response
+
+`204 No Content`
+
+## Create a folder
+
+`POST /api/client/servers/{server}/files/create-folder`
+
+**Subuser permission:** `file.create`
+
+Creates a directory. Wings receives `POST /api/servers/<uuid>/files/create-directory` with `{"name": ..., "path": ...}`.
+Logs the activity event `server:file.create-directory`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `root` | string or null | No | The parent directory. Defaults to `/` when omitted, `null` or empty. |
+| `name` | string | Yes | Name of the new directory. |
+
+```json
+{ "root": "/plugins", "name": "configs" }
+```
+
+### Response
+
+`204 No Content`
+
+## Change file permissions
+
+`POST /api/client/servers/{server}/files/chmod`
+
+**Subuser permission:** `file.update`
+
+Changes the mode of one or more files. Wings receives `POST /api/servers/<uuid>/files/chmod` with `root` and `files`
+as sent. No activity event is logged.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `root` | string | Yes | The directory the file names are relative to. Must be a non-empty string; send `/` for the server root. |
+| `files` | array of objects | Yes | The changes to make. |
+| `files[].file` | string | Yes | File name, relative to `root`. |
+| `files[].mode` | numeric | Yes | The new mode as octal digits. Must pass Laravel's `numeric` rule. The Panel's frontend sends it as a string, e.g. `"755"`. |
+
+```json
+{
+  "root": "/",
+  "files": [
+    { "file": "start.sh", "mode": "755" }
+  ]
+}
+```
+
+### Response
+
+`204 No Content`
+
+## Pull a file from a URL
+
+`POST /api/client/servers/{server}/files/pull`
+
+**Subuser permission:** `file.create`
+
+**Rate limit:** 10 requests per 5 minutes, per user, on top of the normal [rate limit](/docs/api/introduction#rate-limiting).
+
+Asks Wings to download a file from a remote URL into the server's files. Wings receives
+`POST /api/servers/<uuid>/files/pull` with `url`, `root` (from `directory`, default `/`), and `file_name`,
+`use_header` and `foreground` when you send them. Logs the activity event `server:file.pull`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Must be a valid URL. |
+| `directory` | string or null | No | Directory to save the file in. Defaults to `/`. |
+| `filename` | string or null | No | Name to save the file as. Sent to Wings as `file_name`. |
+| `use_header` | boolean | No | Sent to Wings unchanged. Accepts `true`, `false`, `1`, `0`, `"1"`, `"0"`. |
+| `foreground` | boolean | No | Sent to Wings unchanged. Accepts `true`, `false`, `1`, `0`, `"1"`, `"0"`. |
+
+```json
+{
+  "url": "https://example.com/files/plugin.jar",
+  "directory": "/plugins",
+  "filename": "plugin.jar"
+}
+```
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `429` | More than 10 pull requests in 5 minutes. |

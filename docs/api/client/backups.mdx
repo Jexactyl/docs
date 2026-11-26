@@ -1,0 +1,301 @@
+---
+sidebar_position: 18
+title: Backups
+---
+
+# Backups
+
+These endpoints create, list, download, lock, restore and delete a server's backups. Backups are stored by Wings on
+the node, or in Amazon S3, depending on the Panel's backup driver (`APP_BACKUP_DRIVER`, default `wings`).
+
+`{backup}` is the backup's **UUID** (the `uuid` attribute below). A backup that belongs to another server returns
+`404` with the detail `The requested resource was not found for this server.` Deleted backups cannot be accessed.
+
+## The backup object
+
+The `object` name is `backup`.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `uuid` | string | Backup UUID. Use it as `{backup}`. |
+| `is_successful` | boolean | `true` once the backup has completed successfully. `false` while it is running, and if it failed. |
+| `is_locked` | boolean | A locked backup cannot be deleted, and is never deleted automatically to make room for new backups. |
+| `name` | string | Backup name. |
+| `ignored_files` | array of strings | File patterns that were excluded from the backup. |
+| `checksum` | string or null | Checksum reported by Wings once the backup completes. `null` until then. |
+| `bytes` | integer | Size of the backup in bytes. `0` until it completes. |
+| `created_at` | string | ISO 8601 time the backup was started, e.g. `2026-11-26T10:00:00+00:00`. |
+| `completed_at` | string or null | Time the backup finished (successfully or not). `null` while it is running. Always in UTC with a `Z` suffix, e.g. `2026-11-26T10:02:13Z`, while `created_at` uses an offset. |
+
+A backup is **in progress** while `completed_at` is `null`. It **failed** if `completed_at` is set and
+`is_successful` is `false`.
+
+## List backups
+
+`GET /api/client/servers/{server}/backups`
+
+**Subuser permission:** `backup.read`
+
+Returns the server's backups, paginated. Deleted backups are not included. No explicit sort order is applied.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997/backups?per_page=20" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page` | integer | No | Page number. See [pagination](/docs/api/introduction#pagination). |
+| `per_page` | integer | No | Results per page. Default `20`. Values above `50` are reduced to `50`. This endpoint does not validate the value or return the usual `400` for an out-of-range value. |
+
+### Response
+
+`200 OK`
+
+`meta.backup_count` is the number of the server's backups that count toward its backup limit: those in progress plus
+those that succeeded. Failed backups are not counted.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "backup",
+      "attributes": {
+        "uuid": "8c5e1a6d-2f47-4c3b-9b1e-7a0d4e6f9c21",
+        "is_successful": true,
+        "is_locked": false,
+        "name": "Before update",
+        "ignored_files": ["logs", "*.tmp"],
+        "checksum": "sha1:4b2c0a9e7d6f5e3c1b0a8f7e6d5c4b3a2f1e0d9c",
+        "bytes": 524288000,
+        "created_at": "2026-11-26T10:00:00+00:00",
+        "completed_at": "2026-11-26T10:02:13Z"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    },
+    "backup_count": 1
+  }
+}
+```
+
+## Create a backup
+
+`POST /api/client/servers/{server}/backups`
+
+**Subuser permission:** `backup.create`
+
+Starts a new backup. The Panel creates the backup record and asks Wings to start it. The backup runs in the
+background; poll [View a backup](#view-a-backup) until `completed_at` is set.
+
+### Request body
+
+JSON body. All fields are optional.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string or null | No | Up to 191 characters. If empty or omitted, the name is `Backup at YYYY-MM-DD HH:MM:SS` (the current time). |
+| `is_locked` | boolean or null | No | Lock the backup on creation. Only applied if you have the `backup.delete` permission; otherwise ignored and the backup is unlocked. |
+| `ignored` | string or null | No | Files and folders to exclude, one pattern per line (separated by `\n`). Empty lines are dropped. |
+
+```json
+{
+  "name": "Before update",
+  "is_locked": false,
+  "ignored": "logs\n*.tmp"
+}
+```
+
+### Limits
+
+- **Backup limit.** The server's backup limit is set by an administrator. If it is `0`, no backups can be created.
+  Otherwise, if the number of in-progress and successful backups is already at the limit, the request fails. Failed
+  backups do not count. Unlike scheduled backup tasks, this endpoint never deletes an old backup to make room.
+- **Rate limit.** By default, at most **2** backups can be started per server in any **600** second period. Backups
+  that failed are not counted, but backups that have since been deleted are. Change this with the
+  `BACKUP_THROTTLE_LIMIT` and `BACKUP_THROTTLE_PERIOD` (seconds) environment variables in the Panel's `.env` file.
+  A period of `0` disables the rate limit.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "backup",
+  "attributes": {
+    "uuid": "0d3b6f2a-9c41-4e7a-8b5d-1f2e3c4a5b6d",
+    "is_successful": false,
+    "is_locked": false,
+    "name": "Before update",
+    "ignored_files": ["logs", "*.tmp"],
+    "checksum": null,
+    "bytes": 0,
+    "created_at": "2026-11-26T10:21:05+00:00",
+    "completed_at": null
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server is at its backup limit, or the limit is `0`. Detail: `Cannot create a new backup, this server has reached its limit of 3 backups.` (the number is the server's limit) |
+| `429` | Too many backups were started recently. Detail: `Only 2 backups may be generated within a 600 second span of time.` The `Retry-After` header gives the seconds to wait. `code` is `TooManyRequestsHttpException`. |
+
+If Wings cannot be reached, the backup record is not kept and a `DaemonConnectionException` error is returned.
+
+Logs the activity event `server:backup.start`.
+
+## View a backup
+
+`GET /api/client/servers/{server}/backups/{backup}`
+
+**Subuser permission:** `backup.read`
+
+Returns one backup.
+
+### Response
+
+`200 OK`
+
+Returns a `backup` object, in the same format as [Create a backup](#create-a-backup).
+
+## Download a backup
+
+`GET /api/client/servers/{server}/backups/{backup}/download`
+
+**Subuser permission:** `backup.download`
+
+Returns a temporary URL to download the backup archive. The response does not contain the file itself. Send the
+user, or your HTTP client, to the returned URL.
+
+- For backups stored by Wings, the URL points at the node:
+  `<scheme>://<node fqdn>:<node public HTTP port>/download/backup?token=<token>`. The token is a JWT that is valid for
+  **15 minutes**.
+- For backups stored in S3, the URL is a pre-signed S3 URL, valid for **5 minutes**.
+
+The Panel does not check that the backup has completed before generating the URL.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "signed_url",
+  "attributes": {
+    "url": "https://node1.example.com:8080/download/backup?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The backup's storage driver is neither `wings` nor `s3`. Detail: `The backup requested references an unknown disk driver type and cannot be downloaded.` |
+
+Logs the activity event `server:backup.download`.
+
+## Lock or unlock a backup
+
+`POST /api/client/servers/{server}/backups/{backup}/lock`
+
+**Subuser permission:** `backup.delete`
+
+Toggles `is_locked`: a locked backup becomes unlocked, and an unlocked backup becomes locked. No request body.
+
+### Response
+
+`200 OK`
+
+Returns the updated `backup` object.
+
+Logs the activity event `server:backup.lock` or `server:backup.unlock`.
+
+## Restore a backup
+
+`POST /api/client/servers/{server}/backups/{backup}/restore`
+
+**Subuser permission:** `backup.restore`
+
+Asks Wings to restore the backup over the server's files. The server's status is set to `restoring_backup` straight
+away. Until Wings reports that the restore has finished, other server endpoints return
+`409 ServerStateConflictException`.
+
+For a backup stored in S3, the Panel generates a pre-signed download URL (valid for 5 minutes) and passes it to
+Wings.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `truncate` | boolean | Yes | If `true`, every file currently on the server is deleted before the backup is unpacked. If `false`, the backup is unpacked over the existing files. |
+
+```json
+{
+  "truncate": false
+}
+```
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server has a status set that the server access check lets through (in practice, `reinstall_failed`). Detail: `This server is not currently in a state that allows for a backup to be restored.` `code` is `BadRequestHttpException`. |
+| `400` | The backup is still in progress, or it failed. Detail: `This backup cannot be restored at this time: not completed or failed.` `code` is `BadRequestHttpException`. |
+
+If Wings cannot be reached, the server's status change is rolled back and a `DaemonConnectionException` error is
+returned.
+
+Logs the activity event `server:backup.restore`.
+
+## Delete a backup
+
+`DELETE /api/client/servers/{server}/backups/{backup}`
+
+**Subuser permission:** `backup.delete`
+
+Deletes the backup.
+
+- For backups stored by Wings, the Panel asks Wings to delete the archive. If Wings responds `404` (the archive is
+  already gone), the backup is still removed from the Panel. Any other Wings error fails the request.
+- For backups stored in S3, the Panel deletes the object from the bucket.
+
+The backup record is soft-deleted. It no longer appears in the API but still counts toward the backup rate limit
+for the rest of the period.
+
+A locked backup can only be deleted if it is still in progress or has failed. A locked, successful backup must be
+unlocked first.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The backup is locked and completed successfully. Detail: `Cannot delete a backup that is marked as locked.` |
+
+Logs the activity event `server:backup.delete`.

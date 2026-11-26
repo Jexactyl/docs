@@ -1,0 +1,388 @@
+---
+sidebar_position: 7
+title: Users
+---
+
+# Users
+
+These endpoints list, create, update, suspend and delete Panel user accounts, and read the activity log for a user.
+`{user}` is the user's numeric `id`.
+
+## The user object
+
+Every endpoint on this page that returns a user uses this shape (`object` is `user`):
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Numeric user ID. |
+| `external_id` | string or null | ID of the user in an external system. |
+| `uuid` | string | User UUID. |
+| `username` | string | Username. Always stored in lowercase. |
+| `email` | string | Email address. |
+| `language` | string | Language code, for example `en`. |
+| `root_admin` | boolean | Whether the user is a root administrator. |
+| `2fa` | boolean | Whether the user has TOTP two-factor authentication enabled. |
+| `avatar_url` | string or null | Custom avatar URL. Uploaded avatars are returned as a full URL on the Panel's public storage disk. `null` when no custom avatar is set. |
+| `admin_role_id` | integer or null | ID of the user's [admin role](/docs/api/application/roles). |
+| `role_name` | string or null | Name of the admin role. `"None"` if the user is a root administrator without a role, `null` if the user has neither. |
+| `state` | string | `active` or `suspended`. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+
+### Includes
+
+| Include | Returns |
+|---------|---------|
+| `servers` | A list of `server` objects owned by the user, in the format described on [Servers](/docs/api/application/servers). |
+
+See [includes](/docs/api/introduction#including-related-resources).
+
+## List users
+
+`GET /api/application/users`
+
+**Admin permission:** `users.read`
+
+Returns a paginated list of users. Root administrators are listed first unless you pass `sort`.
+
+```bash
+curl "https://panel.example.com/api/application/users?filter[email]=jane@example.com" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[username]` | string | No | Partial match on the username. |
+| `filter[email]` | string | No | Partial match on the email address. |
+| `filter[id]` | integer | No | Exact match on the user ID. |
+| `filter[uuid]` | string | No | Exact match on the UUID. |
+| `filter[external_id]` | string | No | Exact match on the external ID. |
+| `filter[*]` | string | No | Partial match against the UUID, username, email or external ID. |
+| `sort` | string | No | `id`, `uuid`, `username`, `email`, `admin_role_id`, `use_totp`, `root_admin`, `state` or `created_at`, optionally prefixed with `-`. Defaults to `-root_admin`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `servers`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "user",
+      "attributes": {
+        "id": 1,
+        "external_id": null,
+        "uuid": "4c7f1a2e-5d0b-4f8e-9b8a-2a1f3c6d7e90",
+        "username": "jane",
+        "email": "jane@example.com",
+        "language": "en",
+        "root_admin": false,
+        "2fa": false,
+        "avatar_url": null,
+        "admin_role_id": null,
+        "role_name": null,
+        "state": "active",
+        "created_at": "2026-11-26T10:15:00+00:00",
+        "updated_at": "2026-11-26T10:15:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## Get a user
+
+`GET /api/application/users/{user}`
+
+**Admin permission:** `users.read`
+
+Returns a single user.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `servers`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "user",
+  "attributes": {
+    "id": 1,
+    "external_id": "crm-1042",
+    "uuid": "4c7f1a2e-5d0b-4f8e-9b8a-2a1f3c6d7e90",
+    "username": "jane",
+    "email": "jane@example.com",
+    "language": "en",
+    "root_admin": false,
+    "2fa": true,
+    "avatar_url": null,
+    "admin_role_id": 2,
+    "role_name": "Support",
+    "state": "active",
+    "created_at": "2026-11-26T10:15:00+00:00",
+    "updated_at": "2026-11-26T10:15:00+00:00"
+  }
+}
+```
+
+## Get a user by external ID
+
+`GET /api/application/users/external/{external_id}`
+
+**Admin permission:** `users.read`
+
+Returns the user whose `external_id` exactly matches `{external_id}`. Returns `404` if there is no match.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `servers`. |
+
+### Response
+
+`200 OK`. The body is a single `user` object, the same as [Get a user](#get-a-user).
+
+## List a user's activity
+
+`GET /api/application/users/{user}/activity`
+
+**Admin permission:** `activity.read`
+
+Returns a paginated list of activity log entries where the user is a **subject** (the user that was acted on, not
+necessarily the one who acted). Entries with the event `server:file.upload` are never returned.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Defaults to `25`. Values above `100` are reduced to `100`. This endpoint does not reject out-of-range values with `400`. |
+| `page` | integer | No | Page number. |
+| `filter[event]` | string | No | Partial match on the event name. |
+| `filter[ip]` | string | No | Partial match on the IP address. |
+| `sort` | string | No | `timestamp` or `event`, optionally prefixed with `-`. No default sort is applied. |
+| `include` | string | No | `actor`: the `user` who performed the action. Returns a `null_resource` when the actor was not a user. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "activity_log",
+      "attributes": {
+        "id": "356a192b7913b04c54574d18c28d46e6395428ab",
+        "log_id": 1,
+        "batch": null,
+        "event": "admin:users:update",
+        "is_api": true,
+        "ip": "203.0.113.10",
+        "description": "A user was updated",
+        "properties": {
+          "user": { "id": 1, "username": "jane" },
+          "user_count": 2,
+          "new_data": { "email": "jane@example.com", "username": "jane" },
+          "new_data_count": 2
+        },
+        "has_additional_metadata": true,
+        "subjects": [
+          { "type": "user", "id": 1, "identifier": "jane" }
+        ],
+        "timestamp": "2026-11-26T10:15:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 25,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+| Attribute | Description |
+|-----------|-------------|
+| `id` | SHA-1 hash of the log ID. Only useful as a unique key. |
+| `log_id` | Numeric log ID. |
+| `batch` | Batch UUID shared by entries logged together, or `null`. |
+| `is_api` | `true` if the action was made with an API key. |
+| `properties` | Properties stored with the event. For each array property, a `<key>_count` entry is added. If there is exactly one such count, it is renamed to `count`. An `ip` property is replaced with `[hidden]` unless you are the actor. |
+| `has_additional_metadata` | `true` if `properties` contains keys other than `ip`, `useragent`, `using_sftp` and the placeholders used by the event's translation string. |
+| `subjects` | The models the entry refers to. `type` is the model type (for example `user`, `server`), `identifier` is the first non-empty of the model's `name`, `username`, `identifier`, `uuid`, `title` or `code`, or `#<id>`. It is `null` if the model no longer exists. Subjects that are the same model as the actor are left out. |
+
+## Create a user
+
+`POST /api/application/users`
+
+**Admin permission:** `users.create`
+
+Creates a user.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | A valid email address, 1 to 191 characters. Must be unique. |
+| `username` | string | Yes | 1 to 191 characters. Must be unique. Must start and end with a letter or number and contain only letters, numbers, `-`, `_` and `.`, so the shortest valid username is 3 characters. It is stored in lowercase. |
+| `password` | string or null | No | The user's password. No minimum length is enforced. If omitted or empty, a random password is set (see below). |
+| `external_id` | string or null | No | Up to 191 characters. Must be unique. |
+| `root_admin` | boolean | No | Make the user a root administrator. Defaults to `false`. |
+| `admin_role_id` | integer or null | No | ID of an existing [admin role](/docs/api/application/roles). |
+
+If no password is given, the Panel sets a random 30 character password and creates a password reset token for the
+user. This endpoint does not email that token or the password to anyone. The user has to use the Panel's
+"forgot password" flow to set a password.
+
+Only root administrators can create a user with admin access. If the caller is not a root administrator, the request
+fails with `400` when `root_admin` is `true` or `admin_role_id` is not `null`.
+
+Logs the activity events `admin:users:create` and `user:user.create`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You must be a root administrator to grant another user permissions.` |
+
+### Response
+
+`201 Created`. The body is the created `user` object.
+
+```json
+{
+  "object": "user",
+  "attributes": {
+    "id": 12,
+    "external_id": null,
+    "uuid": "b6e0c2a4-1f3d-4e5a-8c7b-9d0e1f2a3b4c",
+    "username": "newuser",
+    "email": "newuser@example.com",
+    "language": "en",
+    "root_admin": false,
+    "2fa": false,
+    "avatar_url": null,
+    "admin_role_id": null,
+    "role_name": null,
+    "state": "active",
+    "created_at": "2026-11-26T10:15:00+00:00",
+    "updated_at": "2026-11-26T10:15:00+00:00"
+  }
+}
+```
+
+## Update a user
+
+`PATCH /api/application/users/{user}`
+
+**Admin permission:** `users.update`
+
+Updates a user. Only fields you send are changed, but `email` and `username` are always required.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | A valid email address, 1 to 191 characters. Must be unique (the user's own current email is allowed). |
+| `username` | string | Yes | Same rules as on create. Must be unique (the user's own current username is allowed). |
+| `password` | string or null | No | New password. If omitted, `null` or empty, the password is not changed. |
+| `external_id` | string or null | No | Up to 191 characters. Must be unique (the user's own current value is allowed). |
+| `root_admin` | boolean | No | Root administrator flag. |
+| `admin_role_id` | integer or null | No | ID of an existing admin role, or `null` to remove the role. |
+
+### Restrictions for non-root administrators
+
+If the caller is not a root administrator, the request fails with `400` when:
+
+- The user being updated is a root administrator. Only root administrators can update root administrators.
+- `root_admin` is `true`, or `admin_role_id` is sent with a value different from the user's current
+  `admin_role_id`. Leaving `admin_role_id` out, or sending the current value, is allowed.
+
+Logs the activity event `admin:users:update`.
+
+### Response
+
+`200 OK`. The body is the updated `user` object.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You must be a root administrator to modify another root administrator.` |
+| `400` | `You must be a root administrator to grant another user permissions.` |
+
+## Suspend or unsuspend a user
+
+`POST /api/application/users/{user}/suspend`
+
+**Admin permission:** `users.update`
+
+Toggles the user's `state`. An `active` user becomes `suspended`, and a `suspended` user becomes `active`. There is
+no request body.
+
+Logs the activity event `admin:users:suspend` in both directions, with the description `A user was suspended` or
+`A user was unsuspended`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You cannot suspend an administrator.` The user is a root administrator. Users with an admin role but without root admin can be suspended. |
+
+## Delete a user
+
+`DELETE /api/application/users/{user}`
+
+**Admin permission:** `users.delete`
+
+Deletes a user. The user must not own any servers. There is no check that prevents deleting a root administrator
+or your own account.
+
+Logs the activity event `admin:users:delete`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `Cannot delete a user with active servers attached to their account. Please delete their servers before continuing.` |

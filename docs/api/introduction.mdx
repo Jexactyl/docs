@@ -1,0 +1,268 @@
+---
+sidebar_position: 1
+title: Introduction
+---
+
+# API Reference
+
+Jexpanel exposes three HTTP APIs. All of them accept and return JSON.
+
+| API | Base path | Who uses it | Authentication |
+|-----|-----------|-------------|----------------|
+| [Application API](/docs/category/application-api) | `/api/application` | Administrators and integrations (billing systems, provisioning scripts) | API key or panel session belonging to an administrator |
+| [Client API](/docs/category/client-api) | `/api/client` | Any user managing their own account and servers | Client API key or panel session |
+| [Remote API](/docs/category/remote-wings-api) | `/api/remote` | The Wings daemon only | Node daemon token |
+
+Every path in this reference is relative to your Panel URL. For example, `GET /api/client` on a panel
+hosted at `https://panel.example.com` means `GET https://panel.example.com/api/client`.
+
+## Authentication
+
+### API keys
+
+Send an API key as a bearer token in the `Authorization` header:
+
+```http
+Authorization: Bearer ptlc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+A key is 48 characters long. It is made of a 16 character **identifier**, followed directly by a 32 character
+**secret**. The identifier starts with a prefix that tells you the key type:
+
+| Prefix | Key type | How to create it | Works on |
+|--------|----------|------------------|----------|
+| `ptlc_` | Client (account) key | Account settings in the Panel, or [`POST /api/client/account/api-keys`](/docs/api/client/api-keys) | Client API. Also the Application API, if the key's owner is an administrator. |
+| `ptla_` | Application key | Admin area in the Panel, or [`POST /api/application/api`](/docs/api/application/api-keys) | Application API only. The Client API rejects it with `403`. |
+
+The full key is shown **once**, when it is created. The Panel stores the secret encrypted and cannot show it again.
+
+A client key can optionally be restricted to a list of IP addresses or CIDR ranges (`allowed_ips`). A request from
+any other address is rejected with `403` and the message
+`This IP address (<ip>) does not have permission to access the API using these credentials.`
+
+### What an administrator can access
+
+The Application API only accepts requests from accounts that are either a **root administrator** or have an
+**admin role** assigned. Any other account receives `403` with the message
+`This account does not have permission to access the API.`
+
+- A root administrator can call every Application API endpoint.
+- An account with an admin role can call an endpoint only if the role contains the permission that endpoint
+  requires (shown as **Admin permission** on each endpoint in this reference). If it doesn't, the response is
+  `403` with the detail `This action is unauthorized.` Endpoints with no listed permission are open to any
+  account with an admin role.
+
+:::info
+Access is decided by the **key owner's** account and admin role. Application keys still store legacy per-resource
+permission columns, but the Panel does not check them.
+:::
+
+### Client API access to servers
+
+On `/api/client/servers/{server}/...` endpoints, `{server}` can be the server's full UUID, its 8 character short
+UUID, or its `serv_`-prefixed identifier. You can access a server if you own it, are a subuser on it, or are a root
+administrator. Otherwise the server is reported as not found (`404`). Subusers also need the
+[subuser permission](/docs/api/client/subusers) listed on each endpoint.
+
+### Panel sessions
+
+The Panel's own frontend calls these same APIs using its session cookie instead of an API key. A request that
+carries the Panel session cookie is treated as a session request. That requires a valid CSRF token, so scripts and
+integrations should use API keys.
+
+### Two-factor enforcement
+
+If the Panel is configured to require two-factor authentication, an account that has not enrolled in TOTP
+(and did not sign in with a passkey) cannot use the API. Both session and API key requests receive `400` with the
+message `Two-factor authentication is required on this account in order to access this endpoint.` A passkey sign-in
+only counts for session requests, so an API key always requires the account to have TOTP enabled.
+
+The two-factor and passkey endpoints under `/api/client/account` are exempt, so an account can still enroll.
+
+## Request headers
+
+Send these headers with every request:
+
+```http
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer <api key>
+```
+
+`Accept: application/json` matters. Without it, an unauthenticated request is redirected to `/auth/login` instead of
+receiving a JSON `401` response.
+
+If the body is sent as JSON but cannot be parsed, the request is rejected with `400` and the message
+`The JSON data passed in the request appears to be malformed: <parser error>`.
+
+## Response format
+
+Most endpoints return resources in a common envelope. A single resource looks like this:
+
+```json
+{
+  "object": "server",
+  "attributes": {
+    "id": 1,
+    "name": "My Server"
+  }
+}
+```
+
+A list of resources looks like this:
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "object": "server", "attributes": { "id": 1, "name": "My Server" } },
+    { "object": "server", "attributes": { "id": 2, "name": "Another Server" } }
+  ]
+}
+```
+
+`object` is the resource type, and `attributes` holds its fields. Some endpoints return plain JSON objects
+instead (for example, `{ "token": "..." }`). Each endpoint's page shows its exact response.
+
+Endpoints that change something without returning data respond with `204 No Content` and an empty body.
+
+### Including related resources
+
+Endpoints that support it accept an `include` query parameter, a comma-separated list of related resources to embed:
+
+```http
+GET /api/application/servers/1?include=user,node
+```
+
+Included resources appear inside `attributes.relationships`, keyed by the include name, and use the same envelope:
+
+```json
+{
+  "object": "server",
+  "attributes": {
+    "id": 1,
+    "relationships": {
+      "user": { "object": "user", "attributes": { "id": 1 } },
+      "node": { "object": "node", "attributes": { "id": 1 } }
+    }
+  }
+}
+```
+
+Includes are resolved at most two levels deep. The includes available on each endpoint are listed on its page.
+
+### Pagination
+
+Paginated list endpoints accept `page` (starting at `1`) and `per_page` query parameters. The limits for `per_page`
+are listed per endpoint. A value outside the allowed range is rejected with `400` and the message
+`"per_page" query parameter must be between <min> and <max>`.
+
+Paginated responses add a `meta.pagination` object:
+
+```json
+{
+  "object": "list",
+  "data": [],
+  "meta": {
+    "pagination": {
+      "total": 52,
+      "count": 20,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 3,
+      "links": {
+        "next": "https://panel.example.com/api/application/users?page=2"
+      }
+    }
+  }
+}
+```
+
+`links.previous` and `links.next` are only present when that page exists.
+
+### Filtering and sorting
+
+Endpoints that support filtering accept `filter[<field>]=<value>` query parameters. Endpoints that support sorting
+accept `sort=<field>`. Prefix the field with `-` to sort in descending order. The allowed fields are listed per
+endpoint, and using any other field is rejected with `400`.
+
+```http
+GET /api/application/users?filter[email]=jane@example.com&sort=-id
+```
+
+## Errors
+
+Errors are returned as an `errors` array:
+
+```json
+{
+  "errors": [
+    {
+      "code": "NotFoundHttpException",
+      "status": "404",
+      "detail": "The requested resource could not be found on the server."
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `code` | The class name of the exception that caused the error. |
+| `status` | The HTTP status code, as a **string**. |
+| `detail` | A message explaining the error. Unexpected server errors return `An unexpected error was encountered while processing this request, please try again.` |
+
+### Validation errors
+
+A request that fails validation returns `422`, with one entry per failed rule. `meta.source_field` is the field
+that failed and `meta.rule` is the name of the rule that failed:
+
+```json
+{
+  "errors": [
+    {
+      "code": "ValidationException",
+      "status": "422",
+      "detail": "The email field is required.",
+      "meta": {
+        "source_field": "email",
+        "rule": "required"
+      }
+    }
+  ]
+}
+```
+
+### Common status codes
+
+| Status | `code` | When |
+|--------|--------|------|
+| `400` | `DisplayException` | The request was understood but cannot be completed. `detail` explains why. |
+| `400` | `BadRequestHttpException` | Malformed JSON, or an invalid query parameter. |
+| `401` | `AuthenticationException` | No credentials, or invalid ones. `detail` is `Unauthenticated.` |
+| `403` | `AccessDeniedHttpException` | Your account or key cannot access this API, or the feature is disabled. |
+| `403` | `AuthorizationException` | You lack the admin or subuser permission the endpoint requires. `detail` is `This action is unauthorized.` |
+| `404` | `NotFoundHttpException` | The resource doesn't exist, or you cannot see it. |
+| `409` | `ServerStateConflictException` | The server is suspended, installing, being transferred, restoring a backup, or its node is under maintenance. |
+| `422` | `ValidationException` | The request body or query failed validation. |
+| `429` | `ThrottleRequestsException` | You exceeded the rate limit. |
+| `502`/`504` or Wings' status | `DaemonConnectionException` | The Panel could not complete a request to the server's node. |
+
+When the Panel runs with `APP_DEBUG=true`, errors also include a `source` object and a stack trace in `meta`.
+Never enable debug mode on a production panel.
+
+## Rate limiting
+
+The Application and Client APIs are rate limited separately. Each allows **256 requests per minute** by default,
+counted per user account (or per IP address when no user is authenticated). Change the limits with these
+environment variables in the Panel's `.env` file:
+
+| Variable | Default | Applies to |
+|----------|---------|------------|
+| `APP_API_APPLICATION_RATELIMIT` | `256` | `/api/application` |
+| `APP_API_CLIENT_RATELIMIT` | `256` | `/api/client` |
+
+Responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers. When the limit is exceeded the Panel
+responds with `429` and a `Retry-After` header giving the number of seconds to wait.
+
+Some endpoints have their own, stricter limit, which is noted on their page. The Remote API is not rate limited.

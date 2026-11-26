@@ -1,0 +1,245 @@
+---
+sidebar_position: 6
+title: Tickets
+---
+
+# Tickets
+
+These endpoints let you open support tickets, read them, reply to them and delete them. Tickets belong to your
+account.
+
+None of these endpoints need a subuser permission. All of them require the tickets module to be enabled. While it is
+disabled they return `400` with the detail `The tickets module is currently disabled.` ([Create a ticket](#create-a-ticket)
+uses its own message). The module is disabled by default.
+
+## List tickets
+
+`GET /api/client/account/tickets`
+
+Returns every ticket you created. The list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/account/tickets?include=messages" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `messages`: the messages on each ticket. See [includes](/docs/api/introduction#including-related-resources). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "ticket",
+      "attributes": {
+        "id": 7,
+        "title": "Server won't start",
+        "status": "pending",
+        "created_at": "2026-11-24T09:00:00+00:00",
+        "updated_at": "2026-11-24T09:00:00+00:00"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | The ticket ID. Use it in the paths below. |
+| `title` | string | |
+| `status` | string | One of `pending`, `in-progress`, `unresolved`, `resolved`. New tickets are `pending`. |
+| `created_at` | string | ISO 8601. |
+| `updated_at` | string | ISO 8601. Adding a message does not change it. |
+
+## Create a ticket
+
+`POST /api/client/account/tickets`
+
+Opens a new ticket. The message becomes the ticket's first message.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | 3 to 191 characters. |
+| `message` | string | Yes | 1 to 4000 characters. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "ticket",
+  "attributes": {
+    "id": 8,
+    "title": "Billing question",
+    "status": "pending",
+    "created_at": "2026-11-26T11:02:17+00:00",
+    "updated_at": "2026-11-26T11:02:17+00:00"
+  }
+}
+```
+
+The `messages` include is supported here too.
+
+Logs the activity event `user:ticket.create`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The tickets module is disabled. `detail`: `You cannot create a ticket as the module is disabled.` |
+| `400` | You already have the maximum number of tickets. `detail`: `You have reached the ticket count per user of <max>.` |
+
+The tickets module is disabled by default. The maximum number of tickets per user defaults to `3`. Both are set by
+an administrator (environment defaults: `TICKETS_ENABLED`, `TICKETS_MAX_COUNT`). Every ticket you have counts
+towards the limit, whatever its status. Delete tickets to free up space.
+
+## View a ticket
+
+`GET /api/client/account/tickets/{ticket}`
+
+Returns one of your tickets.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `ticket` | The ticket's numeric `id`. |
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `messages`: the messages on the ticket. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "ticket",
+  "attributes": {
+    "id": 7,
+    "title": "Server won't start",
+    "status": "in-progress",
+    "created_at": "2026-11-24T09:00:00+00:00",
+    "updated_at": "2026-11-24T10:30:00+00:00",
+    "relationships": {
+      "messages": {
+        "object": "list",
+        "data": [
+          {
+            "object": "ticket_messages",
+            "attributes": {
+              "id": 15,
+              "message": "My server crashes on boot.",
+              "author": {
+                "uuid": "5d2f6a8e-3a4b-4c1d-9e7f-0a1b2c3d4e5f",
+                "email": "jane@example.com"
+              },
+              "created_at": "2026-11-24T09:00:00+00:00",
+              "updated_at": "2026-11-24T09:00:00+00:00"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+The `ticket_messages` attributes:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | The message ID. |
+| `message` | string | The message text. |
+| `author` | object or null | The user who wrote the message (you, or a staff member who replied). See below. |
+| `created_at` | string | ISO 8601. |
+| `updated_at` | string | ISO 8601. |
+
+`author` is `null` if the author's account no longer exists. Otherwise it has two keys:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `uuid` | string | The author's user UUID. |
+| `email` | string or null | The author's email address if the author is you, otherwise `null`. Staff email addresses are never returned. |
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No ticket has that ID, or the ticket belongs to another user. Both cases return the same response. |
+
+## Add a message
+
+`POST /api/client/account/tickets/{ticket}/messages`
+
+Adds a message to one of your tickets. Messages can be added whatever the ticket's status, including `resolved`.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `ticket` | The ticket's numeric `id`. |
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message` | string | Yes | 1 to 4000 characters. |
+
+### Response
+
+`200 OK`
+
+Returns the ticket in the same format as [View a ticket](#view-a-ticket). Use `?include=messages` to get the
+messages, including the new one.
+
+No activity event is logged.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No ticket has that ID, or the ticket belongs to another user. Both cases return the same response. |
+
+## Delete a ticket
+
+`DELETE /api/client/account/tickets/{ticket}`
+
+Deletes one of your tickets and all of its messages.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `ticket` | The ticket's numeric `id`. |
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `user:ticket.delete` with the property `identifier` (the ticket ID).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No ticket has that ID, or the ticket belongs to another user. Both cases return the same response. |

@@ -1,0 +1,245 @@
+---
+sidebar_position: 19
+title: Billing Products
+---
+
+# Billing Products
+
+A product is a plan customers can buy. It belongs to a [category](/docs/api/application/billing-categories) and
+defines the price and the resource limits of the server that is created.
+
+## The product object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Product ID. Used in the URL. |
+| `uuid` | string | Product UUID. |
+| `category_uuid` | string | The `uuid` of the category this product belongs to. |
+| `name` | string | Display name. |
+| `icon` | string or `null` | Icon URL or value. |
+| `price` | number | Price, in the billing currency. |
+| `description` | string or `null` | Description. |
+| `limits.cpu` | integer | CPU limit. |
+| `limits.memory` | integer | Memory limit. |
+| `limits.disk` | integer | Disk limit. |
+| `limits.backup` | integer | Number of backups. |
+| `limits.database` | integer | Number of databases. |
+| `limits.allocation` | integer | Number of allocations. |
+| `created_at`, `updated_at` | string | ISO 8601 timestamps. |
+
+Products have no includes.
+
+On the nested routes under `/billing/categories/{category}/products/{product}`, the product must belong to
+`{category}` (its `category_uuid` must be the category's `uuid`). Otherwise the response is `404`.
+
+## Get a product
+
+`GET /api/application/billing/products/{product}`
+
+**Admin permission:** `billing.read`
+
+Returns one product by its numeric `id`, regardless of category. Use this route to fetch a single product.
+
+```bash
+curl "https://panel.example.com/api/application/billing/products/1" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "product",
+  "attributes": {
+    "id": 1,
+    "uuid": "0d4f6c4e-7a0d-4f3c-8a51-2d6f0a5b9e21",
+    "category_uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11",
+    "name": "Starter",
+    "icon": null,
+    "price": 4.99,
+    "description": "2 GB RAM",
+    "limits": {
+      "cpu": 100,
+      "memory": 2048,
+      "disk": 10240,
+      "backup": 1,
+      "database": 1,
+      "allocation": 1
+    },
+    "created_at": "2026-11-01T09:05:00+00:00",
+    "updated_at": "2026-11-01T09:05:00+00:00"
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No product has this ID. |
+
+## List products in a category
+
+`GET /api/application/billing/categories/{category}/products`
+
+**Admin permission:** `billing.read`
+
+Returns a paginated list of the products whose `category_uuid` is the category's `uuid`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page, `1` to `100`. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]`, `filter[name]` | string | No | Partial match on the field. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `sort` | string | No | One of `id`, `name`, `price`, optionally prefixed with `-`. |
+
+### Response
+
+`200 OK`. A paginated list of `product` objects.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "product",
+      "attributes": {
+        "id": 1,
+        "uuid": "0d4f6c4e-7a0d-4f3c-8a51-2d6f0a5b9e21",
+        "category_uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11",
+        "name": "Starter",
+        "icon": null,
+        "price": 4.99,
+        "description": "2 GB RAM",
+        "limits": { "cpu": 100, "memory": 2048, "disk": 10240, "backup": 1, "database": 1, "allocation": 1 },
+        "created_at": "2026-11-01T09:05:00+00:00",
+        "updated_at": "2026-11-01T09:05:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No category has this ID. |
+
+## Create a product
+
+`POST /api/application/billing/categories/{category}/products`
+
+**Admin permission:** `billing.products-create`
+
+Creates a product in the category. A new UUID is generated for it.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 3 to 191 characters. |
+| `price` | number | Yes | `0` or more. A price of `0` makes the product free. |
+| `icon` | string | No | 3 to 300 characters. |
+| `description` | string | No | At most 300 characters. |
+| `limits` | object | Yes | Resource limits. |
+| `limits.cpu` | integer | Yes | CPU limit. `0` or more. |
+| `limits.memory` | integer | Yes | Memory limit. |
+| `limits.disk` | integer | Yes | Disk limit. |
+| `limits.backup` | integer | Yes | Number of backups. `0` or more. |
+| `limits.database` | integer | Yes | Number of databases. `0` or more. |
+| `limits.allocation` | integer | Yes | Number of allocations. `0` or more. |
+
+### Response
+
+`200 OK`. The new `product` object, as in [Get a product](#get-a-product).
+
+Logs the activity event `admin:billing:products:create`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No category has this ID. |
+| `422` | A field fails the rules above. |
+
+## Get a product in a category
+
+`GET /api/application/billing/categories/{category}/products/{product}`
+
+**Admin permission:** `billing.read`
+
+Returns one product, which must belong to `{category}`.
+
+### Response
+
+`200 OK`. A single `product` object, as in [Get a product](#get-a-product).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No category has the ID `{category}`, or no product with the ID `{product}` belongs to it. |
+
+## Update a product
+
+`PATCH /api/application/billing/categories/{category}/products/{product}`
+
+**Admin permission:** `billing.products-update`
+
+Updates a product, which must belong to `{category}`. Its category is not changed. Although the method is `PATCH`,
+every field is overwritten: a field you leave out is set to `null`. Send the full set of fields each time.
+
+### Request body
+
+The same fields as [Create a product](#create-a-product), with the same rules.
+
+### Response
+
+`200 OK`. The updated `product` object.
+
+Logs the activity event `admin:billing:products:update`, with the request body as the `new_data` property.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No category has the ID `{category}`, or no product with the ID `{product}` belongs to it. |
+| `422` | A field fails the rules in [Create a product](#create-a-product). |
+
+## Delete a product
+
+`DELETE /api/application/billing/categories/{category}/products/{product}`
+
+**Admin permission:** `billing.products-delete`
+
+Deletes a product, which must belong to `{category}`.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:products:delete`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No category has the ID `{category}`, or no product with the ID `{product}` belongs to it. |

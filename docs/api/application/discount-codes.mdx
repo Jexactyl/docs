@@ -1,0 +1,175 @@
+---
+sidebar_position: 21
+title: Discount Codes
+---
+
+# Discount Codes
+
+Discount codes reduce the price of a product at checkout, either by a percentage or by a fixed amount.
+
+## The discount code object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Discount code ID. Used in the URL. |
+| `code` | string | The code customers enter. |
+| `description` | string | Description. |
+| `type` | string | `percentage` or `numeric` (a fixed amount). |
+| `value` | integer | The percentage, or the fixed amount, to take off. |
+| `uses` | integer or `null` | Remaining uses. `null` or `-1` means unlimited. |
+| `active` | boolean | Whether the code can be used. |
+| `expires_at` | string or `null` | ISO 8601 expiry date (time is always midnight), or `null` for no expiry. |
+| `created_at`, `updated_at` | string | ISO 8601 timestamps. |
+
+## List discount codes
+
+`GET /api/application/billing/discount-codes`
+
+**Admin permission:** `billing.discount-codes`
+
+Returns a paginated list of discount codes. Unless another sort is given, newest codes come first (`created_at`
+descending). When you pass `sort`, `created_at` descending is applied after it as a tie-breaker.
+
+```bash
+curl "https://panel.example.com/api/application/billing/discount-codes" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page, `1` to `100`. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]`, `filter[code]`, `filter[type]`, `filter[expires_at]` | string | No | Partial match on the field. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `sort` | string | No | One of `id`, `code`, `value`, `type`, `uses`, `expires_at`, `created_at`, optionally prefixed with `-`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "discount_codes",
+      "attributes": {
+        "id": 1,
+        "code": "WINTER25",
+        "description": "25% off for winter",
+        "type": "percentage",
+        "value": 25,
+        "uses": 100,
+        "active": true,
+        "expires_at": "2027-01-31T00:00:00+00:00",
+        "created_at": "2026-11-26T14:20:00+00:00",
+        "updated_at": "2026-11-26T14:20:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## Create a discount code
+
+`POST /api/application/billing/discount-codes`
+
+**Admin permission:** `billing.discount-codes`
+
+Creates a discount code.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | string | Yes | 4 to 16 characters. Codes are not required to be unique. |
+| `description` | string | Yes | At least 3 characters. |
+| `type` | string | Yes | `percentage` or `numeric`. |
+| `value` | integer | Yes | `0` or more. |
+| `uses` | integer | No | `-1` or more. `null` or `-1` means unlimited. |
+| `active` | boolean | Yes | Whether the code can be used. |
+| `expires_at` | string | No | A date the Panel can parse, for example `2027-01-31`. Only the date is stored. Defaults to `null` (no expiry). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "discount_codes",
+  "attributes": {
+    "id": 2,
+    "code": "FIVEOFF",
+    "description": "5 off any plan",
+    "type": "numeric",
+    "value": 5,
+    "uses": null,
+    "active": true,
+    "expires_at": null,
+    "created_at": "2026-11-26T14:25:00+00:00",
+    "updated_at": "2026-11-26T14:25:00+00:00"
+  }
+}
+```
+
+Logs the activity event `admin:billing:discount-codes:create`.
+
+## Update a discount code
+
+`PATCH /api/application/billing/discount-codes/{discount_code}`
+
+**Admin permission:** `billing.discount-codes`
+
+Updates a discount code. `{discount_code}` is the code's numeric `id`.
+
+### Request body
+
+The same fields and rules as [Create a discount code](#create-a-discount-code). Although the method is `PATCH`,
+`code`, `description`, `type`, `value` and `active` are required on every request. If `expires_at` is left out,
+the expiry is **cleared** (set to `null`). If `uses` is left out, it is not changed.
+
+### Response
+
+`200 OK`. The updated discount code object, as in [Create a discount code](#create-a-discount-code).
+
+Logs the activity event `admin:billing:discount-codes:update`, with the request body as the `new_data` property.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No discount code has this ID. |
+
+## Delete a discount code
+
+`DELETE /api/application/billing/discount-codes/{discount_code}`
+
+**Admin permission:** `billing.discount-codes`
+
+Deletes a discount code. `{discount_code}` is the code's numeric `id`.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:discount-codes:delete`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No discount code has this ID. |

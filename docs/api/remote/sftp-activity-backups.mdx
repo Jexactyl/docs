@@ -1,0 +1,277 @@
+---
+sidebar_position: 3
+title: SFTP, Activity & Backups
+---
+
+# SFTP, Activity & Backups
+
+Wings uses these endpoints to check SFTP logins, send batches of server activity events, and report the progress of
+backups and backup restores.
+
+All endpoints require [daemon authentication](/docs/api/remote/authentication). "The calling node" below means the
+node whose token was used.
+
+## Authenticate an SFTP login
+
+`POST /api/remote/sftp/auth`
+
+Checks the credentials a user gave to the SFTP server on a node and, if they are valid, returns the user, the server
+and the user's permissions on that server.
+
+```bash
+curl -X POST https://panel.example.com/api/remote/sftp/auth \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN_ID.$TOKEN" \
+  -d '{"type": "password", "username": "jane.1a2b3c4d", "password": "secret"}'
+```
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string or null | No | `password` or `public_key`. Anything other than `public_key` (including omitting it) is treated as a password login. |
+| `username` | string | Yes | The SFTP username, in the form `<panel username>.<server identifier>`. |
+| `password` | string | Yes | The password, or for `public_key` logins the public key in a format phpseclib can read (for example OpenSSH `ssh-ed25519 AAAA...`). |
+
+The `username` is split at its **last** period, so Panel usernames that contain periods work. The part after the
+last period is the server identifier, matched against the server's full UUID or its 8 character short UUID. If there
+is no period, the whole value is used as the server identifier and the Panel username is empty.
+
+### How the login is checked
+
+The checks run in this order. Failures marked "counts" add one to the throttle counter.
+
+1. The server identifier must not be empty. Otherwise `400`.
+2. The throttle must not be exceeded. Otherwise `429`.
+3. A user with that exact Panel username must exist. Otherwise `403` (counts).
+4. A server with that identifier must exist **on the calling node**. Otherwise `403` (counts).
+5. The credentials must match:
+   - **Password:** the password is checked against the user's password hash. On failure the Panel logs
+     `auth:sftp.fail` (property `method` = `password`) against the user and returns `403` (counts).
+   - **Public key:** the key is parsed, and its SHA-256 fingerprint must match one of the user's SSH keys. On failure
+     it returns `403`. This only counts toward the throttle if the key could not be parsed. No activity is logged.
+6. The user must be a root administrator, the server owner, or a subuser with the `file.sftp` permission. Otherwise
+   the Panel logs `server:sftp.denied` and returns `403`.
+7. The server must be in a usable state: not suspended, not on a node under maintenance, installed, not restoring a
+   backup, and not being transferred. Otherwise `409`.
+
+### Throttling
+
+The controller uses Laravel's login throttle with its defaults: **5 failed attempts**, after which further requests
+are rejected until **1 minute** after the attempts were counted. A successful login does not reset the counter.
+
+The throttle key is the lowercased `<server identifier>|<request IP>`. The request IP is the address the Panel sees
+for the request, which is normally the Wings node, not the SFTP user.
+
+:::caution
+The throttle key uses the **server identifier**, not the Panel username. Failed attempts by any user against a
+server, coming through the same node, count toward one shared limit. Five bad attempts can lock every user out of
+SFTP on that server for up to a minute.
+:::
+
+### Response
+
+`200 OK`
+
+This is a plain JSON object, not a resource envelope.
+
+```json
+{
+  "user": "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
+  "server": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "permissions": ["*"]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | string | The user's UUID. |
+| `server` | string | The server's full UUID. |
+| `permissions` | array of strings | `["*"]` for the server owner. A root administrator gets `["*", "admin.websocket.errors", "admin.websocket.install", "admin.websocket.transfer"]`. A subuser gets their subuser permission list. |
+
+### Errors
+
+| Status | `detail` | When |
+|--------|----------|------|
+| `400` | `No valid server identifier was included in the request.` | The server identifier part of `username` is empty (for example `jane.`). |
+| `403` | `Authorization credentials were not correct, please try again.` | Unknown user, unknown server on this node, wrong password, or unknown or unparseable public key. |
+| `403` | `You do not have permission to access SFTP for this server.` | A subuser without `file.sftp`. Also, a user who is not an owner, subuser or root administrator. |
+| `409` | See the [status codes](/docs/api/introduction#common-status-codes). | The server's state blocks access. |
+| `429` | `Too many login attempts for this account, please try again in <seconds> seconds.` | Throttle exceeded. A `Retry-After` header gives the seconds to wait. |
+
+## Record activity events
+
+`POST /api/remote/activity`
+
+Wings sends server activity events to the Panel in batches.
+The Panel stores them in the activity log with the server as the subject.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `data` | array | Yes | The events. |
+| `data.*.server` | string | Yes | Server UUID. |
+| `data.*.event` | string | Yes | Event name. Only names starting with `server:` are stored. |
+| `data.*.metadata` | object or null | Yes (must be present) | Event properties. Stored as the log entry's properties. |
+| `data.*.timestamp` | string | Yes | When the event happened, as an RFC 3339 timestamp. |
+| `data.*.user` | string or null | No | UUID of the user who caused the event. |
+| `data.*.ip` | string or null | No | IP address of the user. Must be a valid IP address. |
+
+### What happens
+
+For each event:
+
+- It is **skipped** if its `server` is not a server on the calling node, or its `event` does not start with
+  `server:`.
+- The timestamp is parsed as RFC 3339 in UTC, after removing any fractional seconds directly before a trailing `Z`.
+  If it cannot be parsed, the current time is used and the original value is added to the properties as
+  `original_timestamp`. The time is stored in the Panel's timezone.
+- `ip` defaults to `127.0.0.1` when empty.
+- If `user` matches a user's UUID, that user is recorded as the actor. Otherwise the entry has no actor.
+
+Each stored entry gets one subject: the server.
+
+### Response
+
+`200 OK` with an empty body.
+
+## Get backup upload URLs
+
+`GET /api/remote/backups/{backup}`
+
+`{backup}` is the backup's UUID. When backups are stored in S3, Wings calls this before uploading a backup. The Panel
+starts an S3 multipart upload and returns a presigned URL for each part.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `size` | integer | Yes | Size of the backup archive in bytes. Must be a non-zero integer. |
+
+### What happens
+
+1. The backup must exist, its server must be on the calling node, and it must not have a `completed_at` date.
+2. The backup's own `disk` must be `s3`. The Panel's current default adapter does not matter.
+3. The Panel sends `CreateMultipartUpload` to S3 for the key `<server uuid>/<backup uuid>.tar.gz` in the configured
+   bucket, with `ContentType` `application/x-gzip`, and `StorageClass` set to `AWS_BACKUPS_STORAGE_CLASS` when that is
+   set.
+4. It creates one presigned `UploadPart` URL for each part, numbering parts from `1`. The number of parts is
+   `size / part_size`, rounded up.
+5. It saves the S3 upload ID on the backup as `upload_id`.
+
+Settings that affect the result:
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `BACKUP_MAX_PART_SIZE` | `5368709120` (5 GiB) | Part size in bytes. A value that is not a positive integer falls back to the default. |
+| `BACKUP_PRESIGNED_URL_LIFESPAN` | `60` | Minutes until the presigned URLs expire. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "parts": [
+    "https://my-bucket.s3.eu-west-1.amazonaws.com/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f.tar.gz?partNumber=1&uploadId=...&X-Amz-Signature=..."
+  ],
+  "part_size": 5368709120
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `parts` | array of strings | Presigned URLs, in part order. Upload part `n` with a `PUT` to `parts[n - 1]`. |
+| `part_size` | integer | Size of each part in bytes. The last part may be smaller. |
+
+### Errors
+
+| Status | `detail` | When |
+|--------|----------|------|
+| `400` | `A non-empty "size" query parameter must be provided.` | `size` is missing, `0`, or not an integer. |
+| `400` | `The configured backup adapter is not an S3 compatible adapter.` | The backup's `disk` is not `s3`, or the `s3` backup disk is not an S3 adapter. |
+| `404` | `The requested resource could not be found on the server.` | No backup has this UUID. |
+| `404` | Empty | The backup's server is on a different node. |
+| `409` | `This backup is already in a completed state.` | The backup has a `completed_at` date. |
+
+## Report backup result
+
+`POST /api/remote/backups/{backup}`
+
+`{backup}` is the backup's UUID. Wings calls this when a backup finishes, successfully or not.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `successful` | boolean | Yes | Whether the backup succeeded. |
+| `checksum` | string or null | When `successful` is true | The archive checksum. |
+| `checksum_type` | string or null | When `successful` is true | The checksum algorithm. |
+| `size` | number or null | When `successful` is true | Archive size in bytes. |
+| `parts` | array or null | No | S3 only. The uploaded parts, each with `etag` (string, required) and `part_number` (number, required). |
+
+### What happens
+
+The Panel logs `server:backup.complete` or `server:backup.fail` (property `name` = the backup name) with the backup
+and its server as subjects, and in the same transaction updates the backup:
+
+| Column | Successful | Failed |
+|--------|------------|--------|
+| `is_successful` | `true` | `false` |
+| `is_locked` | Unchanged | `false` |
+| `checksum` | `<checksum_type>:<checksum>` | `null` |
+| `bytes` | `size` | `0` |
+| `completed_at` | Now | Now |
+
+If the backup's `disk` is `s3`, it also finishes the multipart upload for the key
+`<server uuid>/<backup uuid>.tar.gz`:
+
+- **Failed:** it sends `AbortMultipartUpload`. If the backup has no `upload_id`, it does nothing.
+- **Successful:** it sends `CompleteMultipartUpload`. The parts are the `parts` from the request (`etag` and
+  `part_number`), or, when `parts` is not sent, the list returned by S3's `ListParts`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | `detail` | When |
+|--------|----------|------|
+| `400` | `Cannot update the status of a backup that is already marked as completed.` | The backup's `is_successful` is already `true`. A failed backup can be reported again. |
+| `400` | `Cannot complete backup request: no upload_id present on model.` | S3 only. `successful` is true but the backup has no `upload_id`. |
+| `404` | `The requested resource could not be found on the server.` | No backup has this UUID. |
+| `404` | Empty | The backup's server is on a different node. |
+
+## Report restore result
+
+`POST /api/remote/backups/{backup}/restore`
+
+`{backup}` is the backup's UUID. Wings calls this when restoring a backup to its server finishes.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `successful` | boolean | No | Whether the restore succeeded. Not validated. Read as a boolean, so a missing value counts as `false`. |
+
+### What happens
+
+The server's status is set to `null` (normal), whether or not the restore succeeded. The Panel then logs an activity
+event with the backup and its server as subjects (property `name` = the backup name):
+
+- `server:backup.restore-complete` when `successful` is true.
+- `server:backup.restore-failed` otherwise.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | `detail` | When |
+|--------|----------|------|
+| `404` | `The requested resource could not be found on the server.` | No backup has this UUID. |
+| `404` | Empty | The backup's server is on a different node. |

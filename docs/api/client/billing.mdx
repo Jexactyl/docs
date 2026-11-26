@@ -1,0 +1,778 @@
+---
+sidebar_position: 8
+title: Billing & Store
+---
+
+# Billing & Store
+
+These endpoints power the Panel's storefront: browsing categories and products, choosing a node and egg, checking a
+discount code, paying through Stripe Checkout (or claiming a free product), and viewing your orders and invoices.
+
+Every endpoint on this page is served under `/api/client/billing` and requires the billing module to be enabled
+(`BILLING_ENABLED`, or the billing setting in the admin area). When it is disabled, every endpoint responds with
+`403` (`AccessDeniedHttpException`). None of these endpoints require an admin role or a subuser permission. They act
+on the account that owns the API key or session.
+
+:::info
+Server upgrades for an existing server live under the server's own path. See [Server Upgrades](/docs/api/client/upgrade).
+:::
+
+## Checkout flow
+
+The Panel uses **Stripe Checkout Sessions** (not Payment Intents created by the client). A paid purchase works like
+this:
+
+1. Browse with [`GET /billing/categories`](#list-categories), [`GET /billing/categories/{category}`](#list-products-in-a-category)
+   and [`GET /billing/products/{product}`](#view-a-product).
+2. If the product's `egg_id` is `null`, list the eggs you can pick from with
+   [`GET /billing/products/{product}/eggs`](#list-eggs-for-a-product). Then fetch the variables you can set with
+   [`GET /billing/products/{egg}/variables`](#list-egg-variables).
+3. Pick a node from [`POST /billing/nodes/{product}`](#list-deployable-nodes).
+4. Optionally check a code with [`POST /billing/discount-codes`](#check-a-discount-code).
+5. Call [`POST /billing/stripe/create`](#create-a-stripe-checkout-session). The Panel creates a Stripe Checkout Session
+   (`mode: payment`), records a `pending` order whose `transaction_id` is the Checkout Session ID (`cs_...`), and
+   returns the Checkout Session URL as plain text.
+6. Send the customer to that URL. When payment succeeds, Stripe redirects to
+   `<APP_URL>/account/billing/processing?session=<Checkout Session ID>`. If the customer cancels, Stripe redirects to
+   `<APP_URL>/account/billing/cancel`.
+7. Call [`POST /billing/stripe/process`](#process-a-stripe-checkout-session) with that Checkout Session ID. The Panel
+   retrieves the session from Stripe, checks it is paid, then creates, renews or upgrades the server.
+
+The Panel does not use Stripe webhooks for this flow. Nothing is deployed until step 7 is called.
+
+Free products (price `0` or less) skip Stripe entirely. Call [`POST /billing/free/process`](#claim-or-renew-a-free-product)
+instead.
+
+## List categories
+
+`GET /api/client/billing/categories`
+
+Returns every category whose `visible` flag is `true`. The list is not paginated.
+
+If no category is visible, the Panel records a billing exception for administrators (title
+`No product categories are visible`) and returns an empty list.
+
+```bash
+curl https://panel.example.com/api/client/billing/categories \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "category",
+      "attributes": {
+        "id": 1,
+        "name": "Minecraft",
+        "icon": "https://example.com/minecraft.png",
+        "description": "Java edition servers"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Category ID. |
+| `name` | string | Category name. |
+| `icon` | string or null | Icon URL. |
+| `description` | string or null | Description. |
+
+## List products in a category
+
+`GET /api/client/billing/categories/{category}`
+
+`{category}` is the category's numeric ID. Returns every product in the category, ordered by `price` ascending. The
+list is not paginated.
+
+If the category's `visible` flag is not `true`, the response is `404`.
+
+If the category has no products, the Panel records a billing exception for administrators and returns an empty list.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "product",
+      "attributes": {
+        "id": 3,
+        "name": "Starter",
+        "icon": null,
+        "price": 4.99,
+        "category_id": 1,
+        "category_uuid": "6f1c2a8e-1b7e-4b52-9d0f-2f6d7e1a9c11",
+        "description": "2 GB RAM, 20 GB disk",
+        "egg_id": 5,
+        "limits": {
+          "cpu": 100,
+          "memory": 2048,
+          "disk": 20480,
+          "backup": 2,
+          "database": 1,
+          "allocation": 1
+        }
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Product ID. |
+| `name` | string | Product name. |
+| `icon` | string or null | Icon URL. |
+| `price` | number | Price in the Panel's billing currency (major units, for example `4.99`). |
+| `category_id` | integer | ID of the product's category. |
+| `category_uuid` | string | UUID of the product's category. |
+| `description` | string or null | Description. |
+| `egg_id` | integer or null | The egg pinned by the **category**. `null` means the customer picks an egg from the category's nest at checkout. |
+| `limits.cpu` | integer | CPU limit, in percent. |
+| `limits.memory` | integer | Memory limit, in MiB. |
+| `limits.disk` | integer | Disk limit, in MiB. |
+| `limits.backup` | integer | Backup limit. |
+| `limits.database` | integer | Database limit. |
+| `limits.allocation` | integer | Allocation limit. |
+
+## View a product
+
+`GET /api/client/billing/products/{product}`
+
+`{product}` is the product's numeric ID. Returns a single `product` object with the same attributes as above.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "product",
+  "attributes": {
+    "id": 3,
+    "name": "Starter",
+    "icon": null,
+    "price": 4.99,
+    "category_id": 1,
+    "category_uuid": "6f1c2a8e-1b7e-4b52-9d0f-2f6d7e1a9c11",
+    "description": "2 GB RAM, 20 GB disk",
+    "egg_id": null,
+    "limits": { "cpu": 100, "memory": 2048, "disk": 20480, "backup": 2, "database": 1, "allocation": 1 }
+  }
+}
+```
+
+## List eggs for a product
+
+`GET /api/client/billing/products/{product}/eggs`
+
+`{product}` is the product's numeric ID. Returns every egg in the nest of the product's category. Use this when the
+product's `egg_id` is `null` and the customer must choose an egg. The list is returned even when the category pins
+an egg. The list is not paginated.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "egg",
+      "attributes": {
+        "id": 5,
+        "uuid": "a1b2c3d4-0000-4000-8000-000000000005",
+        "name": "Paper"
+      }
+    }
+  ]
+}
+```
+
+## List egg variables
+
+`GET /api/client/billing/products/{egg}/variables`
+
+:::caution
+Despite the `/products/` prefix, the path parameter is an **egg ID**, not a product ID. The route binds `{egg:id}`.
+For example, `GET /api/client/billing/products/5/variables` returns the variables of egg `5`.
+:::
+
+Returns the egg's variables that have `user_viewable` set to `true`. Any egg ID works. The endpoint does not check
+that the egg belongs to a product. The list is not paginated.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "egg_variable",
+      "attributes": {
+        "name": "Server Jar File",
+        "description": "The name of the server jarfile to run the server with.",
+        "env_variable": "SERVER_JARFILE",
+        "default_value": "server.jar",
+        "server_value": null,
+        "is_editable": true,
+        "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | string | Display name. |
+| `description` | string | Description. |
+| `env_variable` | string | Environment variable name. Use this as the `key` when sending `variables` at checkout. |
+| `default_value` | string or null | Default value. |
+| `server_value` | null | Always `null` here, because no server is involved. |
+| `is_editable` | boolean | The egg variable's `user_editable` flag. |
+| `rules` | string | Laravel validation rules the value must pass. |
+
+## List deployable nodes
+
+`POST /api/client/billing/nodes/{product}`
+
+`{product}` is the product's numeric ID. Returns the nodes a server for this product can be deployed to. The request
+takes no body.
+
+Which nodes are considered depends on the product's price:
+
+- **Paid product** (price not equal to `0`): nodes with `deployable` set to `true`.
+- **Free product** (price equal to `0`): nodes with `deployable` **or** `deployable_free` set to `true`. Paid-only
+  nodes are included so the storefront can show them as unavailable. A free product can only actually be deployed to
+  a node with `deployable_free` set to `true` and no deployment fee.
+
+A node is then only returned if it has at least one allocation with no server assigned **and** the Panel can reach
+its Wings daemon (the Panel calls the node's system information endpoint for every candidate node). If no nodes are
+returned, the Panel records a billing exception for administrators.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "node",
+      "attributes": {
+        "id": 1,
+        "name": "Node 1",
+        "fqdn": "node1.example.com",
+        "deployable": true,
+        "deployable_free": false,
+        "deployment_fee": 2.5
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Node ID. Send it as `node_id` at checkout. |
+| `name` | string | Node name. |
+| `fqdn` | string | The node's domain name. |
+| `deployable` | boolean | Paid servers can be deployed to this node. |
+| `deployable_free` | boolean | Free servers can be deployed to this node. |
+| `deployment_fee` | number or null | When greater than `0`, it is added to the price of a new paid server deployed to this node. |
+
+## Check a discount code
+
+`POST /api/client/billing/discount-codes`
+
+Looks up a discount code and returns it if it can be used. This does not reserve or consume the code.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `discount_code` | string | Yes | The code. 4 to 16 characters. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "discount_codes",
+  "attributes": {
+    "code": "SAVE10",
+    "description": "10% off your first month",
+    "type": "percentage",
+    "value": 10
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `code` | string | The code. |
+| `description` | string | Description. |
+| `type` | string | `percentage` or `numeric`. |
+| `value` | integer | Percentage off (for `percentage`), or an amount off in the billing currency's major units (for `numeric`). |
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `The selected discount code does not exist.` |
+| `400` | `The selected discount code is invalid.` The code is inactive, past its `expires_at` date, or has no uses left. |
+
+## Create a Stripe checkout session
+
+`POST /api/client/billing/stripe/create`
+
+Starts a paid purchase or a paid renewal. The Panel creates a Stripe Checkout Session and a `pending` order, and
+returns the URL of the Checkout Session.
+
+- If `node_id` is sent, this is a **new server** order (`type` `new`).
+- If `node_id` is not sent, this is a **renewal** (`type` `renewal`) of the server given in `server_id`. The server
+  must be owned by you, and `product_id` must be the product the server is billed under (its `billing_product_id`).
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `product_id` | integer | Yes | ID of an existing product. The product must be paid (price greater than `0`). For a renewal, it must be the server's current product. |
+| `node_id` | integer or null | For a new server | ID of an existing node. The node must have `deployable` set to `true`. |
+| `server_id` | integer or null | For a renewal | Internal ID of an existing server (`internal_id` in the server object). Ignored when `node_id` is sent. |
+| `egg_id` | integer or null | New server, when the product's `egg_id` is `null` | ID of an existing egg. It must belong to the nest of the product's category. Ignored when the category pins an egg, and for renewals. |
+| `variables` | array or null | No | Environment variables for a new server. See [Variables](#variables). Ignored for renewals. |
+| `variables.*.key` | string | Yes, per entry | The variable's `env_variable`. |
+| `variables.*.value` | string or null | No | The value. |
+| `discount_code` | string or null | No | A discount code. Must match an existing code. `null` or an empty string means no code. |
+
+### Variables
+
+Each entry in `variables` is an object `{ "key": "<env_variable>", "value": "<value>" }`. When the server is
+deployed, the Panel starts from the egg's default values, then applies only the entries whose `key` is a variable
+that is both **user viewable** and **user editable** (the same variables a user can change on the server's startup
+page). Other keys are ignored. The resulting values are then validated against each egg variable's rules; a value
+that fails returns `422`.
+
+### What the Panel sends to Stripe
+
+The Checkout Session is created with:
+
+- `mode`: `payment`
+- `customer_email`: your account email
+- `line_items`: one item named after the product, with `unit_amount` equal to the price in the smallest currency
+  unit (rounded), quantity `1`. The price is the discounted price if a discount code was sent. If the node has a
+  `deployment_fee` greater than `0`, a second item named `Deployment Fee` is added. The currency is the Panel's
+  billing currency code, lowercased (default `usd`).
+- `success_url`: `<APP_URL>/account/billing/processing?session={CHECKOUT_SESSION_ID}`
+- `cancel_url`: `<APP_URL>/account/billing/cancel`
+- `metadata`: all values as strings:
+
+| Metadata key | Value |
+|--------------|-------|
+| `user_id` | Your user ID. |
+| `customer_email` | Your email. |
+| `product_id` | The product ID. |
+| `node_id` | The node ID, or an empty string for renewals. |
+| `server_id` | The server ID for renewals, or `0` for new servers. |
+| `egg_id` | The chosen egg ID, or an empty string when the category pins an egg or for renewals. |
+| `variables` | The `variables` array encoded as JSON (`[]` when not sent). |
+| `order_type` | `new` or `renewal`. |
+| `discount_code` | The discount code, or `null`. |
+
+### Discount handling
+
+If a non-empty `discount_code` is sent, the discounted price is:
+
+- `percentage`: `price - price * value / 100`, not below `0`.
+- `numeric`: `price - value`, not below `0`.
+
+The code is checked here but its use count is only reduced when the order is processed.
+
+### Order created
+
+The order is created with `status` `pending`, `transaction_id` set to the Checkout Session ID, and `total` set to the
+(discounted) price plus the node's deployment fee. Its `metadata` holds only the keys that apply:
+`deployment_fee` (when greater than `0`), and `discount_code` and `subtotal` (the undiscounted product price) when a
+discount code was sent. If none apply, `metadata` is `null`. For renewals the order is linked to the server.
+
+### Response
+
+`200 OK` with `Content-Type: text/html`. The body is the Stripe Checkout Session URL as **plain text**, not JSON:
+
+```text
+https://checkout.stripe.com/c/pay/cs_test_a1B2c3D4...
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You cannot create a checkout session for a free product.` |
+| `400` | `Paid servers cannot be deployed to this node.` The node's `deployable` flag is not `true`. |
+| `400` | `This server ID does not exist on your account.` `node_id` was not sent and `server_id` is missing or is not a server you own. |
+| `400` | `A server can only be renewed using the product it is billed under.` Renewal with a `product_id` other than the server's `billing_product_id`. |
+| `400` | `An egg must be selected to deploy this product.` |
+| `400` | `The selected egg does not belong to this product's nest.` |
+| `400` | `The selected discount code does not exist.` / `The selected discount code is invalid.` |
+| `400` | `The discount code has an unknown type.` |
+
+## Process a Stripe checkout session
+
+`POST /api/client/billing/stripe/process`
+
+Completes a paid order after the customer returns from Stripe Checkout. Use the same endpoint for new servers,
+renewals and [server upgrades](/docs/api/client/upgrade).
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `session` | string | Yes | The Stripe Checkout Session ID (`cs_...`) from the `session` query parameter of the success URL. At most 255 characters. |
+
+### What happens
+
+1. The Panel retrieves the Checkout Session from Stripe. Its `payment_status` must be `paid`.
+2. Inside a database transaction it finds the order whose `transaction_id` equals the session ID, and locks it. The
+   order must belong to you, and the session metadata's `user_id` must be your user ID. Otherwise the response is
+   `404`, so only the user who started the checkout can complete it.
+3. The order must be `pending`. It is set to `processing`. If the metadata has a `discount_code` that is still valid,
+   one use is consumed. A code with no uses left is deactivated and its `expires_at` set to now.
+4. The session's `currency` must equal the Panel's billing currency code, and its `amount_total` must be at least the
+   order `total` in the smallest currency unit. Otherwise the order is put back to `pending`.
+5. The order is fulfilled according to its `type`, using the order's product and linked server:
+   - `new`: a server is created for you, on the node in the session metadata, with the egg and
+     [variables](#variables) chosen at checkout, with the product's
+     limits, swap `0`, IO `500`, subuser limit `3`, the egg's startup command and its first Docker image, and a
+     renewal date of now plus the configured renewal days (default 30). The server is named
+     `<username>'s <product name> Server`. The order is linked to the new server.
+   - `renewal`: the server's renewal date is moved forward by the configured renewal days, and the server is
+     unsuspended if it was suspended.
+   - `upgrade`: the server's product and its CPU, memory, disk, allocation, backup and database limits are replaced
+     with the new product's values.
+6. The order is set to `processed`.
+
+If step 5 fails for any reason (for example, no free allocation on the node), the order is set to `failed`, a
+billing exception is recorded for administrators, and the error is returned instead of a server. A renewal or
+upgrade order whose server no longer exists fails with `The server for this order could not be found.`
+
+### Response
+
+`200 OK`
+
+The created, renewed or upgraded server, in the same `server` format as the rest of the Client API. `allocations`
+and `variables` are always included.
+
+```json
+{
+  "object": "server",
+  "attributes": {
+    "server_owner": true,
+    "identifier": "1a2b3c4d",
+    "__deprecated_uuid_short": "1a2b3c4d",
+    "server_identifier": "1a2b3c4d",
+    "internal_id": 12,
+    "group_id": null,
+    "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "name": "jane's Starter Server",
+    "node": "Node 1",
+    "is_node_under_maintenance": false,
+    "sftp_details": { "ip": "node1.example.com", "port": 2022 },
+    "description": "",
+    "limits": {
+      "memory": 2048,
+      "swap": 0,
+      "disk": 20480,
+      "io": 500,
+      "cpu": 100,
+      "threads": null,
+      "oom_killer": false
+    },
+    "invocation": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}",
+    "docker_image": "ghcr.io/pterodactyl/yolks:java_21",
+    "egg_features": ["eula", "java_version", "pid_limit"],
+    "billing_product_id": 3,
+    "feature_limits": { "databases": 1, "allocations": 1, "backups": 2, "subusers": 3 },
+    "status": "installing",
+    "renewal_date": "2026-12-26T12:00:00.000000Z",
+    "is_transferring": false,
+    "relationships": {
+      "allocations": {
+        "object": "list",
+        "data": [
+          {
+            "object": "allocation",
+            "attributes": {
+              "id": 40,
+              "ip": "203.0.113.10",
+              "ip_alias": null,
+              "port": 25565,
+              "notes": null,
+              "is_default": true
+            }
+          }
+        ]
+      },
+      "variables": {
+        "object": "list",
+        "data": [
+          {
+            "object": "egg_variable",
+            "attributes": {
+              "name": "Server Jar File",
+              "description": "The name of the server jarfile to run the server with.",
+              "env_variable": "SERVER_JARFILE",
+              "default_value": "server.jar",
+              "server_value": "server.jar",
+              "is_editable": true,
+              "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+`renewal_date` is the raw date value serialised by Laravel (ISO 8601 with microseconds, UTC), or `null`. The
+`egg` and `subusers` includes are also available with `?include=`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `Failed to process order: unable to retrieve session` Stripe returned an error, for example for an unknown session ID. |
+| `400` | `Payment not completed.` The session's `payment_status` is not `paid`. |
+| `400` | `This order has already been processed.` The order is not `pending`. |
+| `400` | `Payment amount or currency does not match the order.` |
+| `400` | `The server for this order could not be found.` |
+| `400` | Any displayable error from fulfilment, such as `Unable to create server: <reason>` or `No allocations are available for deployment.` The order is set to `failed`. |
+| `404` | No order has this session ID as its `transaction_id`, the order belongs to another user, or the order's product no longer exists. |
+
+## Claim or renew a free product
+
+`POST /api/client/billing/free/process`
+
+Deploys a new server from a free product, or renews a free server. The product must not be paid (price `0` or less).
+No Stripe session is involved.
+
+- If `server_id` is **not** sent, a **new server** is deployed to `node_id`.
+- If `server_id` is sent, the request is a **renewal** of that server.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `product_id` | integer | Yes | ID of an existing product. Must be free. |
+| `node_id` | integer or null | For a new server | ID of an existing node. The node must have `deployable_free` set to `true` and no deployment fee. |
+| `server_id` | integer or null | For a renewal | Internal ID of a server you own. `product_id` must be the server's current product. |
+| `egg_id` | integer or null | New server, when the product's `egg_id` is `null` | ID of an existing egg in the nest of the product's category. Ignored when the category pins an egg. |
+| `variables` | array or null | No | Environment variables for a new server, in the same format and with the same rules as for [paid checkout](#variables). |
+| `variables.*.key` | string | Yes, per entry | The variable's `env_variable`. |
+| `variables.*.value` | string or null | No | The value. |
+
+### New server
+
+The Panel locks your user record, then checks:
+
+- the node allows free servers (`deployable_free`) and has no deployment fee, and
+- you do not already own a server created from this product, and have no `pending` new order for it.
+
+It then creates a `pending` order (`type` `new`, `total` equal to the product price, no `transaction_id`) and deploys
+the server with the same settings as a paid server, except the renewal date is now plus `BILLING_FREE_RENEWAL_DAYS`
+days (default 30). The order is linked to the server and set to `processed`.
+
+If deployment fails for any reason, the order is set to `failed`, a billing exception is recorded, and the error is
+returned. A failed order does not count as owning the product, so you can try again.
+
+### Renewal
+
+The Panel finds the server among the servers you own and checks that `product_id` is the server's current product
+and that the server's renewal date is no more than 7 days in the future. Only then does it create a `pending` order
+(`type` `renewal`). The server's renewal date is moved forward by the configured renewal days (`BILLING_RENEWAL_DAYS`,
+default 30), the server is unsuspended if needed, and the order is set to `processed`.
+
+### Response
+
+`200 OK`
+
+The new or renewed server, in the same `server` format shown under
+[Process a Stripe checkout session](#process-a-stripe-checkout-session).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `A valid node must be assigned for deployment.` New server without a `node_id`. |
+| `400` | `Free servers cannot be deployed to this node.` |
+| `400` | `This node has a deployment fee and cannot be used for free servers.` |
+| `400` | `You already own one of this free product and cannot have multiple.` |
+| `400` | `This package is paid and cannot be deployed for no cost.` |
+| `400` | `An egg must be selected to deploy this product.` |
+| `400` | `The selected egg does not belong to this product's nest.` |
+| `400` | `Unable to create server: <reason>` |
+| `400` | `No allocations are available for deployment.` |
+| `400` | `A server can only be renewed using the product it is billed under.` |
+| `400` | `You cannot renew a free server more than 7 days in advance.` The renewal date is more than 7 days in the future. No order is created. |
+| `404` | Renewal: `server_id` is not a server you own. No order is created. |
+| `422` | A variable value fails the egg variable's rules. The order is set to `failed`. |
+
+## List orders
+
+`GET /api/client/billing/orders`
+
+Returns your orders, newest first (`created_at` descending), paginated.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]`, `filter[name]`, `filter[server_id]` | string | No | Allowed filters. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `sort` | string | No | One of `id`, `name`, `total`, `type`, `created_at`, `threat_index`. Prefix with `-` for descending. Applied before the default `created_at` descending order. |
+| `include` | string | No | `server`, `invoice`. See [includes](/docs/api/introduction#including-related-resources). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "order",
+      "attributes": {
+        "id": 21,
+        "name": "4f0d2c3e-8a1b-4c5d-9e6f-7a8b9c0d1e2f",
+        "description": "Starter with ID 4f0d2c3e",
+        "total": 7.49,
+        "status": "processed",
+        "product_id": 3,
+        "type": "new",
+        "server_id": 12,
+        "metadata": {
+          "deployment_fee": 2.5
+        },
+        "created_at": "2026-11-20T10:15:00+00:00",
+        "updated_at": "2026-11-20T10:16:30+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Order ID. |
+| `name` | string | A random UUID generated for the order. |
+| `description` | string | `<product name> with ID <first 8 characters of name>`. |
+| `total` | number | Amount charged, including any deployment fee, after any discount. |
+| `status` | string | `pending`, `processing`, `processed`, `failed` or `expired`. |
+| `product_id` | integer | Product ID. For upgrades, the product being upgraded to. |
+| `type` | string | `new`, `renewal` or `upgrade`. |
+| `server_id` | integer or null | Linked server, once known. |
+| `metadata` | object or null | `deployment_fee`, `discount_code` and `subtotal` when they apply. See [Create a Stripe checkout session](#create-a-stripe-checkout-session). |
+| `created_at` | string | ISO 8601. |
+| `updated_at` | string | ISO 8601. |
+
+With `include=server`, `relationships.server` is the `server` object (or `null` if there is none). With
+`include=invoice`, `relationships.invoice` is:
+
+```json
+{
+  "object": "invoice",
+  "attributes": {
+    "id": 9,
+    "number": "INV-000009",
+    "generated_at": "2026-11-20T10:16:31+00:00"
+  }
+}
+```
+
+`number` and `generated_at` can be `null`. `relationships.invoice` is `null` when no invoice exists yet.
+
+## View an order
+
+`GET /api/client/billing/orders/{order}`
+
+`{order}` is the order's numeric ID. Returns a single `order` object with the attributes above. `?include=server,invoice`
+is supported.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "order",
+  "attributes": {
+    "id": 21,
+    "name": "4f0d2c3e-8a1b-4c5d-9e6f-7a8b9c0d1e2f",
+    "description": "Starter with ID 4f0d2c3e",
+    "total": 7.49,
+    "status": "processed",
+    "product_id": 3,
+    "type": "new",
+    "server_id": 12,
+    "metadata": { "deployment_fee": 2.5 },
+    "created_at": "2026-11-20T10:15:00+00:00",
+    "updated_at": "2026-11-20T10:16:30+00:00"
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You are not authorised to access this resource.` The order belongs to another user. |
+
+## Download an order invoice
+
+`GET /api/client/billing/orders/{order}/invoice`
+
+Downloads the PDF invoice generated for the order. Logs the activity event `user:billing:order.invoice-download`.
+
+### Response
+
+`200 OK`
+
+The PDF file as a download (`Content-Disposition: attachment`), named `<invoice number>.pdf`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `You are not authorised to access this resource.` The order belongs to another user. |
+| `400` | `This order does not have an invoice yet — it may still be generating.` |

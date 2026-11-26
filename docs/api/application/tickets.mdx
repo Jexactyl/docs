@@ -1,0 +1,341 @@
+---
+sidebar_position: 22
+title: Tickets
+---
+
+# Tickets
+
+Support tickets let users contact administrators. These endpoints manage tickets, their messages, and the ticket
+module settings.
+
+## The ticket object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Ticket ID. Used in the URL. |
+| `title` | string | Ticket title. |
+| `status` | string | One of the [ticket statuses](#ticket-statuses). |
+| `user` | object or `null` | The user who owns the ticket, as a [user record](#user-records-in-tickets-and-messages). `null` if the user no longer exists. |
+| `assigned_to` | object or `null` | The administrator the ticket is assigned to, as a user record, or `null`. |
+| `created_at`, `updated_at` | string | ISO 8601 timestamps. |
+
+### Ticket statuses
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Waiting for a response. |
+| `in-progress` | Being worked on. |
+| `unresolved` | Closed without a resolution. |
+| `resolved` | Resolved. |
+
+### User records in tickets and messages
+
+`user`, `assigned_to` (on tickets) and `author` (on messages) are not `user` resources. They are plain objects,
+without the `object`/`attributes` envelope, with exactly these keys:
+
+```json
+{
+  "id": 2,
+  "uuid": "c2a8e0f4-1b3d-4e5f-9a6b-7c8d9e0f1a2b",
+  "username": "jane",
+  "email": "jane@example.com"
+}
+```
+
+### Includes
+
+| Include | Description |
+|---------|-------------|
+| `messages` | All of the ticket's messages, as a list of `ticket_messages` objects. |
+
+See [includes](/docs/api/introduction#including-related-resources).
+
+## List tickets
+
+`GET /api/application/tickets`
+
+**Admin permission:** `tickets.read`
+
+Returns a paginated list of all tickets.
+
+```bash
+curl "https://panel.example.com/api/application/tickets?filter[status]=pending" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page, `1` to `100`. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]`, `filter[title]`, `filter[status]`, `filter[created_at]` | string | No | Partial match on the field. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `sort` | string | No | One of `id`, `title`, `status`, `created_at`, optionally prefixed with `-`. |
+| `include` | string | No | `messages`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "ticket",
+      "attributes": {
+        "id": 5,
+        "title": "Server won't start",
+        "status": "pending",
+        "user": {
+          "id": 2,
+          "uuid": "c2a8e0f4-1b3d-4e5f-9a6b-7c8d9e0f1a2b",
+          "username": "jane",
+          "email": "jane@example.com"
+        },
+        "assigned_to": null,
+        "created_at": "2026-11-26T09:12:00+00:00",
+        "updated_at": "2026-11-26T09:12:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## Create a ticket
+
+`POST /api/application/tickets`
+
+**Admin permission:** `tickets.create`
+
+Creates a ticket on behalf of a user. This does not add a message; use [Add a message](#add-a-message) for that.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | integer | Yes | ID of an existing user who owns the ticket. |
+| `title` | string | Yes | 3 to 191 characters. |
+| `status` | string | Yes | One of `pending`, `resolved`, `unresolved`, `in-progress`. |
+| `assigned_to` | integer | No | ID of an existing user to assign the ticket to, or `null`. |
+
+### Response
+
+`200 OK`. A single `ticket` object.
+
+```json
+{
+  "object": "ticket",
+  "attributes": {
+    "id": 6,
+    "title": "Billing question",
+    "status": "pending",
+    "user": { "id": 2, "uuid": "c2a8e0f4-1b3d-4e5f-9a6b-7c8d9e0f1a2b", "username": "jane", "email": "jane@example.com" },
+    "assigned_to": { "id": 1, "uuid": "5d0e7a3c-8f21-4b9e-a6d4-2c1b0e9f8a7d", "username": "admin", "email": "admin@example.com" },
+    "created_at": "2026-11-26T14:30:00+00:00",
+    "updated_at": "2026-11-26T14:30:00+00:00"
+  }
+}
+```
+
+Logs the activity event `admin:tickets:create`.
+
+## Get a ticket
+
+`GET /api/application/tickets/{ticket}`
+
+**Admin permission:** `tickets.read`
+
+`{ticket}` is the ticket's numeric `id`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `messages`. |
+
+### Response
+
+`200 OK`. A single `ticket` object, as in [Create a ticket](#create-a-ticket). With `include=messages`:
+
+```json
+{
+  "object": "ticket",
+  "attributes": {
+    "id": 5,
+    "title": "Server won't start",
+    "status": "in-progress",
+    "user": { "id": 2, "uuid": "c2a8e0f4-1b3d-4e5f-9a6b-7c8d9e0f1a2b", "username": "jane", "email": "jane@example.com" },
+    "assigned_to": null,
+    "created_at": "2026-11-26T09:12:00+00:00",
+    "updated_at": "2026-11-26T10:00:00+00:00",
+    "relationships": {
+      "messages": {
+        "object": "list",
+        "data": [
+          {
+            "object": "ticket_messages",
+            "attributes": {
+              "id": 11,
+              "message": "My server is stuck on starting.",
+              "author": { "id": 2, "uuid": "c2a8e0f4-1b3d-4e5f-9a6b-7c8d9e0f1a2b", "username": "jane", "email": "jane@example.com" },
+              "created_at": "2026-11-26T09:12:00+00:00",
+              "updated_at": "2026-11-26T09:12:00+00:00"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+## Update a ticket
+
+`PUT /api/application/tickets/{ticket}`
+
+**Admin permission:** `tickets.update`
+
+Replaces the ticket's fields.
+
+### Request body
+
+The same fields and rules as [Create a ticket](#create-a-ticket). `user_id`, `title` and `status` are required on
+every request. If `assigned_to` is left out, the assignment is not changed. Send `"assigned_to": null` to remove it.
+
+### Response
+
+`200 OK`. The updated `ticket` object.
+
+Logs the activity event `admin:tickets:update`, with the request body as the `new_data` property.
+
+## Delete a ticket
+
+`DELETE /api/application/tickets/{ticket}`
+
+**Admin permission:** `tickets.delete`
+
+Deletes the ticket and all of its messages.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:tickets:delete`.
+
+## Update a ticket setting
+
+`PUT /api/application/tickets/settings`
+
+**Admin permission:** `tickets.update`
+
+Sets one ticket module setting. The value is stored under the settings key `settings::modules:tickets:` followed by
+`key`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | Yes | The setting name, without the `modules:tickets:` prefix. Must be `enabled` or `max_count`. |
+| `value` | string, number, boolean or `null` | Yes (may be `null`) | The new value. Arrays and objects are rejected. It is stored as a string: `true` is stored as `"1"`, `false` and `null` as an empty string. |
+
+The allowed values of `key`:
+
+| `key` | Meaning |
+|-------|---------|
+| `enabled` | Whether users can create tickets through the Client API. |
+| `max_count` | Maximum number of tickets each user can create through the Client API. |
+
+These settings only affect users. Tickets created through this Application API ignore them.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:tickets:settings`, with the request body as the `settings` property.
+
+## Add a message
+
+`POST /api/application/tickets/message`
+
+**Admin permission:** `tickets.message`
+
+Adds a message to a ticket. The message's author is the account making the request. The ticket's status is not
+changed. Note that the ticket ID goes in the body, not the path.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ticket_id` | integer | Yes | The ticket to add the message to. |
+| `message` | string | Yes | 3 to 500 characters. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "ticket_messages",
+  "attributes": {
+    "id": 12,
+    "message": "Please try reinstalling the server.",
+    "author": { "id": 1, "uuid": "5d0e7a3c-8f21-4b9e-a6d4-2c1b0e9f8a7d", "username": "admin", "email": "admin@example.com" },
+    "created_at": "2026-11-26T14:40:00+00:00",
+    "updated_at": "2026-11-26T14:40:00+00:00"
+  }
+}
+```
+
+Logs the activity event `admin:tickets:message`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No ticket has the ID `ticket_id`. |
+
+## List a ticket's messages
+
+`GET /api/application/tickets/{ticket}/messages`
+
+**Admin permission:** `tickets.read`
+
+Returns a paginated list of the ticket's messages. No default order is applied; use `sort=id` for oldest first.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page, `1` to `100`. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the message ID. |
+| `sort` | string | No | `id` or `-id`. |
+
+### Response
+
+`200 OK`. A paginated list of `ticket_messages` objects.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Message ID. |
+| `message` | string | Message text. |
+| `author` | object or `null` | The author, as a [user record](#user-records-in-tickets-and-messages), or `null` if the user no longer exists. |
+| `created_at`, `updated_at` | string | ISO 8601 timestamps. |

@@ -1,0 +1,199 @@
+---
+sidebar_position: 18
+title: Billing Categories
+---
+
+# Billing Categories
+
+A category groups billing products in the store. Each category is tied to a nest, and optionally to one egg. When
+no egg is set, customers pick an egg from the nest at checkout.
+
+## The category object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Category ID. Used in the URL. |
+| `uuid` | string | Category UUID. Products refer to their category by this value (`category_uuid`). |
+| `name` | string | Display name. |
+| `icon` | string or `null` | Icon URL or value. |
+| `description` | string or `null` | Description. |
+| `visible` | boolean | Whether the category is visible in the store. |
+| `nest_id` | integer | The nest servers are created from. |
+| `egg_id` | integer or `null` | The egg servers are created from, or `null` if the customer chooses. |
+| `created_at`, `updated_at` | string | ISO 8601 timestamps. |
+
+### Includes
+
+| Include | Description |
+|---------|-------------|
+| `products` | All of the category's products (those whose `category_uuid` is the category's `uuid`), as a list of `product` objects. Not paginated. |
+
+See [includes](/docs/api/introduction#including-related-resources).
+
+## List categories
+
+`GET /api/application/billing/categories`
+
+**Admin permission:** `billing.read`
+
+Returns a paginated list of categories.
+
+```bash
+curl "https://panel.example.com/api/application/billing/categories?per_page=50" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page, `1` to `100`. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]`, `filter[name]` | string | No | Partial match on the field. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `sort` | string | No | One of `id`, `name`, `created_at`, `visible`, optionally prefixed with `-`. |
+| `include` | string | No | `products`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "category",
+      "attributes": {
+        "id": 1,
+        "uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11",
+        "name": "Minecraft",
+        "icon": "https://example.com/minecraft.png",
+        "description": "Minecraft servers",
+        "visible": true,
+        "nest_id": 1,
+        "egg_id": 3,
+        "created_at": "2026-11-01T09:00:00+00:00",
+        "updated_at": "2026-11-01T09:00:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 50,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## Create a category
+
+`POST /api/application/billing/categories`
+
+**Admin permission:** `billing.categories-create`
+
+Creates a category. A new UUID is generated for it.
+
+### Request body
+
+JSON body. Note that `eggId` and `nestId` are camelCase.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 3 to 191 characters. |
+| `icon` | string | No | At most 300 characters. |
+| `description` | string | No | At most 300 characters. |
+| `visible` | boolean | No | Whether the category is shown in the store. |
+| `eggId` | integer | One of `eggId` or `nestId` | An existing egg. When set, the category's nest is taken from this egg and `nestId` is ignored. |
+| `nestId` | integer | If `eggId` is not set | An existing nest. Used only when `eggId` is not set; the category then has no egg. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "category",
+  "attributes": {
+    "id": 2,
+    "uuid": "1e7b9d2a-4c3f-4f6e-8a0b-5d2c7e9f1a3b",
+    "name": "Rust",
+    "icon": null,
+    "description": "Rust servers",
+    "visible": true,
+    "nest_id": 4,
+    "egg_id": null,
+    "created_at": "2026-11-26T14:10:00+00:00",
+    "updated_at": "2026-11-26T14:10:00+00:00"
+  }
+}
+```
+
+Logs the activity event `admin:billing:categories:create`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `422` | A field fails the rules above, including when neither `eggId` nor `nestId` is sent, or either one does not exist. |
+
+## Get a category
+
+`GET /api/application/billing/categories/{category}`
+
+**Admin permission:** `billing.read`
+
+`{category}` is the category's numeric `id`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `products`. |
+
+### Response
+
+`200 OK`. A single `category` object, as in [Create a category](#create-a-category).
+
+## Update a category
+
+`PATCH /api/application/billing/categories/{category}`
+
+**Admin permission:** `billing.categories-update`
+
+Updates a category. Although the method is `PATCH`, every field is overwritten: a field you leave out is set to
+`null`. Send the full set of fields each time.
+
+### Request body
+
+The same fields as [Create a category](#create-a-category), with the same rules. `eggId`/`nestId` are resolved the
+same way, so one of them must be sent.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:categories:update`, with the request body as the `new_data` property.
+
+### Errors
+
+Same as [Create a category](#create-a-category).
+
+## Delete a category
+
+`DELETE /api/application/billing/categories/{category}`
+
+**Admin permission:** `billing.categories-delete`
+
+Deletes the category and all of its products, in one database transaction.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:categories:delete`.

@@ -1,0 +1,467 @@
+---
+sidebar_position: 8
+title: Admin Roles
+---
+
+# Admin Roles
+
+An admin role is a named set of admin permissions. A user with an admin role (and without root admin) can use the
+Application API and the admin area, but only the endpoints whose **Admin permission** is in the role. Root
+administrators have every permission. These endpoints manage the roles. To assign a role to a user, set
+`admin_role_id` on the [user](/docs/api/application/users). `{role}` is the role's numeric `id`.
+
+## The admin role object
+
+`object` is `admin_role`.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Role ID. |
+| `name` | string | Role name. |
+| `description` | string or null | Role description. |
+| `color` | string or null | Display color. Free-form string, not validated. |
+| `permissions` | array of strings | Permission strings granted to the role. Empty array if none. |
+
+Admin roles have no includes.
+
+## List roles
+
+`GET /api/application/users/roles`
+
+**Admin permission:** `roles.read`
+
+Returns a paginated list of admin roles.
+
+```bash
+curl "https://panel.example.com/api/application/users/roles" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the role ID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `sort` | string | No | `id` or `name`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "admin_role",
+      "attributes": {
+        "id": 2,
+        "name": "Support",
+        "description": "Front-line support staff",
+        "color": "#3b82f6",
+        "permissions": ["overview.read", "users.read", "servers.read", "tickets.read", "tickets.message"]
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## List available permissions
+
+`GET /api/application/users/roles/permissions`
+
+**Admin permission:** `roles.read`
+
+Returns every permission group that can be assigned to a role, with descriptions. A permission string is the group
+name and a key joined by a dot, for example `servers` and `read` give `servers.read`.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "role_permissions",
+  "attributes": {
+    "permissions": {
+      "overview": {
+        "description": "Permissions to allow administrator to view the index page.",
+        "keys": {
+          "read": "Read the contents of the overview."
+        }
+      },
+      "settings": {
+        "description": "Permissions to allow changing basic admin settings.",
+        "keys": {
+          "read": "Read the panel settings.",
+          "update": "Update the panel settings."
+        }
+      }
+    }
+  }
+}
+```
+
+The example is shortened. The full list is in the [permission reference](#permission-reference) below.
+
+## Get a role
+
+`GET /api/application/users/roles/{role}`
+
+**Admin permission:** `roles.read`
+
+Returns a single admin role.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "admin_role",
+  "attributes": {
+    "id": 2,
+    "name": "Support",
+    "description": "Front-line support staff",
+    "color": "#3b82f6",
+    "permissions": ["overview.read", "users.read"]
+  }
+}
+```
+
+## Create a role
+
+`POST /api/application/users/roles`
+
+**Admin permission:** `roles.create`
+
+Creates an admin role. New roles are always stored with a `sort_id` of `99`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 64 characters. |
+| `description` | string or null | No | Up to 255 characters. |
+| `color` | string or null | No | Any string. |
+| `permissions` | array of strings or null | No | Permission strings. Only strings listed in the [permission reference](#permission-reference) are stored; anything else is silently dropped. |
+
+Logs the activity event `admin:roles:create`.
+
+### Response
+
+`200 OK`. The body is the created `admin_role` object.
+
+## Update a role
+
+`PATCH /api/application/users/roles/{role}`
+
+**Admin permission:** `roles.update`
+
+Updates an admin role. Only the fields you send are changed, but `name` is always required.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 64 characters. |
+| `description` | string or null | No | Up to 255 characters. |
+| `color` | string or null | No | Any string. |
+| `permissions` | array of strings or null | No | Replaces the role's permissions. Only strings listed in the [permission reference](#permission-reference) are stored; anything else is silently dropped. |
+| `sort_id` | number | No | Sort position. |
+
+Logs the activity event `admin:roles:update`.
+
+### Response
+
+`200 OK`. The body is the updated `admin_role` object.
+
+## Update a role's permissions
+
+`PATCH /api/application/users/roles/{role}/permissions`
+
+**Admin permission:** `roles.update`
+
+Replaces the role's permissions and nothing else. Only strings listed in the
+[permission reference](#permission-reference) are kept; anything else is silently dropped.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `permissions` | array of strings or null | No | The new permission list. If omitted or `null`, the role's permissions are cleared. |
+
+Logs the activity event `admin:roles:update-permissions`.
+
+### Response
+
+`200 OK`. The body is the updated `admin_role` object.
+
+## Delete a role
+
+`DELETE /api/application/users/roles/{role}`
+
+**Admin permission:** `roles.delete`
+
+Deletes an admin role. In the same transaction, every user with this role has `admin_role_id` set to `null` and
+`root_admin` set to `false`, so those users lose admin access.
+
+Logs the activity event `admin:roles:delete`.
+
+### Response
+
+`204 No Content`
+
+## Permission reference
+
+Every admin permission defined in `app/Models/AdminRole.php`. The **Permission** column is the string that
+endpoints check and that you put in a role's `permissions` array. The descriptions are quoted from the Panel's
+permission list (the same text returned by [List available permissions](#list-available-permissions)).
+
+### overview
+
+Permissions to allow administrator to view the index page.
+
+| Permission | Description |
+|------------|-------------|
+| `overview.read` | Read the contents of the overview. |
+
+### settings
+
+Permissions to allow changing basic admin settings.
+
+| Permission | Description |
+|------------|-------------|
+| `settings.read` | Read the panel settings. |
+| `settings.update` | Update the panel settings. |
+
+### activity
+
+Permissions to allow admins to see activity logs.
+
+| Permission | Description |
+|------------|-------------|
+| `activity.read` | View the admin activity logs. |
+
+### api
+
+Permissions to configure Application API keys.
+
+| Permission | Description |
+|------------|-------------|
+| `api.read` | View the existing Application API keys. |
+| `api.create` | Create a new Application API key. |
+| `api.delete` | Delete Application API keys. |
+
+### auth
+
+Permissions to configure the Authentication module.
+
+| Permission | Description |
+|------------|-------------|
+| `auth.read` | View the current authentication settings. |
+| `auth.create` | Enable authentication modules. |
+| `auth.update` | Update authentication module settings. |
+| `auth.delete` | Disable authentication modules. |
+
+### billing
+
+Permissions to configure the Billing module.
+
+| Permission | Description |
+|------------|-------------|
+| `billing.read` | Read basic billing information. |
+| `billing.orders` | Read all user orders on the system. |
+| `billing.invoices` | Read all generated invoices on the system. |
+| `billing.products-create` | Create a billing product. |
+| `billing.products-update` | Update a billing product. |
+| `billing.products-delete` | Delete a billing product. |
+| `billing.categories-create` | Create a billing category. |
+| `billing.categories-update` | Update a billing category. |
+| `billing.categories-delete` | Delete a billing category. |
+| `billing.exceptions` | Manage and resolve billing exceptions. |
+| `billing.update` | Update billing settings. |
+| `billing.export` | Export current billing configuration to JSON. |
+| `billing.import` | Import current billing configuration from JSON. |
+| `billing.delete-keys` | Delete Stripe API billing keys used for payment. |
+| `billing.discount-codes` | Create, update and delete discount codes for checkout. |
+
+### tickets
+
+Permissions to configure the Ticket module.
+
+| Permission | Description |
+|------------|-------------|
+| `tickets.read` | View all existing tickets. |
+| `tickets.create` | Create a new ticket. |
+| `tickets.update` | Update an existing ticket. |
+| `tickets.delete` | Delete an existing ticket. |
+| `tickets.message` | Send a message in a ticket. |
+
+### ai
+
+Permissions to configure the AI module.
+
+| Permission | Description |
+|------------|-------------|
+| `ai.read` | View the Admin AI console. |
+| `ai.update` | Control the AI settings. |
+
+### webhooks
+
+Permissions to configure the Webhook system.
+
+| Permission | Description |
+|------------|-------------|
+| `webhooks.read` | View all available webhooks. |
+| `webhooks.update` | Control the webhook settings. |
+
+### alerts
+
+Permissions to configure Alerts.
+
+| Permission | Description |
+|------------|-------------|
+| `alerts.read` | View the alert configuration. |
+| `alerts.update` | Control the alert settings. |
+
+### theme
+
+Permissions to configure the panel theme.
+
+| Permission | Description |
+|------------|-------------|
+| `theme.read` | View the current theme settings. |
+| `theme.update` | Adjust the panel theme. |
+
+### links
+
+Permissions to configure external links.
+
+| Permission | Description |
+|------------|-------------|
+| `links.read` | View the current links. |
+| `links.create` | Create a new link. |
+| `links.update` | Update an existing link. |
+| `links.delete` | Delete an existing link. |
+
+### databases
+
+Permissions to configure database hosts.
+
+| Permission | Description |
+|------------|-------------|
+| `databases.read` | View the current database hosts. |
+| `databases.create` | Create a new database host. |
+| `databases.update` | Update an existing database host. |
+| `databases.delete` | Delete an existing database host. |
+
+### nodes
+
+Permissions to configure nodes.
+
+| Permission | Description |
+|------------|-------------|
+| `nodes.read` | View the current nodes. |
+| `nodes.create` | Create a new node. |
+| `nodes.update` | Update an existing node. |
+| `nodes.delete` | Delete an existing node. |
+
+### servers
+
+Permissions to configure servers.
+
+| Permission | Description |
+|------------|-------------|
+| `servers.read` | View the current servers. |
+| `servers.create` | Create a new server. |
+| `servers.update` | Update an existing server. |
+| `servers.delete` | Delete an existing server. |
+
+### server-presets
+
+Permissions to configure server presets.
+
+| Permission | Description |
+|------------|-------------|
+| `server-presets.read` | View the current server presets. |
+| `server-presets.create` | Create a new server preset. |
+| `server-presets.update` | Update an existing server preset. |
+| `server-presets.delete` | Delete an existing server preset. |
+
+### users
+
+Permissions to configure users.
+
+| Permission | Description |
+|------------|-------------|
+| `users.read` | View the current users. |
+| `users.create` | Create a new user. |
+| `users.update` | Update an existing user. |
+| `users.delete` | Delete an existing user. |
+
+### roles
+
+Permissions to configure admin roles.
+
+| Permission | Description |
+|------------|-------------|
+| `roles.read` | View the current admin roles. |
+| `roles.create` | Create a new admin role. |
+| `roles.update` | Update an existing admin role. |
+| `roles.delete` | Delete an existing admin role. |
+
+### nests
+
+Permissions to configure nests.
+
+| Permission | Description |
+|------------|-------------|
+| `nests.read` | View the current nests. |
+| `nests.create` | Create a new nest. |
+| `nests.update` | Update an existing nest. |
+| `nests.delete` | Delete an existing nest. |
+
+### eggs
+
+Permissions to configure eggs.
+
+| Permission | Description |
+|------------|-------------|
+| `eggs.read` | View the current eggs. |
+| `eggs.create` | Create a new egg. |
+| `eggs.update` | Update an existing egg. |
+| `eggs.delete` | Delete an existing egg. |
+| `eggs.import` | Import an egg to an existing nest via JSON. |
+| `eggs.export` | Export an egg via JSON. |
+
+### mounts
+
+Permissions to configure mounts.
+
+| Permission | Description |
+|------------|-------------|
+| `mounts.read` | View the current mounts. |
+| `mounts.create` | Create a new mount. |
+| `mounts.update` | Update an existing mount. |
+| `mounts.delete` | Delete an existing mount. |

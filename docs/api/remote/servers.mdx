@@ -1,0 +1,420 @@
+---
+sidebar_position: 2
+title: Servers
+---
+
+# Servers
+
+Wings uses these endpoints to load the configuration of the servers on its node, report installation results, reset
+stuck states after a restart, and report the outcome of server transfers.
+
+All endpoints require [daemon authentication](/docs/api/remote/authentication). "The calling node" below means the
+node whose token was used.
+
+Where a path takes `{uuid}`, it accepts either the server's full UUID or its 8 character short UUID. If no server
+matches, the response is `404`.
+
+## Server configuration structure
+
+`GET /api/remote/servers` and `GET /api/remote/servers/{uuid}` both return a server's configuration as two objects:
+`settings` and `process_configuration`.
+
+### `settings`
+
+Built by `ServerConfigurationStructureService`.
+
+```json
+{
+  "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "meta": {
+    "name": "jane's Starter Server",
+    "description": ""
+  },
+  "suspended": false,
+  "environment": {
+    "SERVER_JARFILE": "server.jar",
+    "MINECRAFT_VERSION": "latest",
+    "STARTUP": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}",
+    "P_SERVER_UUID": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "P_SERVER_ALLOCATION_LIMIT": 1
+  },
+  "invocation": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}",
+  "skip_egg_scripts": false,
+  "build": {
+    "memory_limit": 2048,
+    "swap": 0,
+    "io_weight": 500,
+    "cpu_limit": 100,
+    "threads": null,
+    "disk_space": 20480,
+    "oom_disabled": true,
+    "oom_killer": false
+  },
+  "container": {
+    "image": "ghcr.io/pterodactyl/yolks:java_21"
+  },
+  "allocations": {
+    "default": {
+      "ip": "203.0.113.10",
+      "port": 25565
+    },
+    "force_outgoing_ip": false,
+    "mappings": {
+      "203.0.113.10": [25565, 25566]
+    }
+  },
+  "mounts": [
+    {
+      "source": "/srv/shared",
+      "target": "/home/container/shared",
+      "read_only": true
+    }
+  ],
+  "egg": {
+    "id": "a1b2c3d4-0000-4000-8000-000000000005",
+    "file_denylist": []
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uuid` | string | Server UUID. |
+| `meta.name` | string | Server name. |
+| `meta.description` | string or null | Server description. |
+| `suspended` | boolean | `true` when the server's `status` is `suspended`. |
+| `environment` | object | Environment variables. See below. |
+| `invocation` | string | The server's startup command, or the egg's startup command if the server's is `null`. |
+| `skip_egg_scripts` | boolean | Whether the install script is skipped. |
+| `build.memory_limit` | integer | Memory, in MiB. |
+| `build.swap` | integer | Swap, in MiB. |
+| `build.io_weight` | integer | Block IO weight. |
+| `build.cpu_limit` | integer | CPU limit, in percent. |
+| `build.threads` | string or null | CPU pinning, for example `0-1,3`. |
+| `build.disk_space` | integer | Disk, in MiB. |
+| `build.oom_disabled` | boolean | The inverse of `oom_killer`. Kept for older Wings versions. |
+| `build.oom_killer` | boolean | Whether the OOM killer is enabled. |
+| `container.image` | string | Docker image. |
+| `allocations.default` | object | IP and port of the server's primary allocation. |
+| `allocations.force_outgoing_ip` | boolean | The egg's `force_outgoing_ip` flag. |
+| `allocations.mappings` | object | Every allocation assigned to the server **on its current node**, grouped by IP. Each key is an IP and each value is an array of ports. |
+| `mounts` | array | Mounts attached to the server, each with `source`, `target` and `read_only` (boolean). |
+| `egg.id` | string | The egg's **UUID**. |
+| `egg.file_denylist` | array or null | The egg's file denylist (inherited from the parent egg when the egg copies its configuration from another egg). |
+
+`environment` is built in this order, with later entries overwriting earlier ones:
+
+1. Every variable of the server's egg, keyed by `env_variable`. The value is the server's value, or the egg
+   variable's default value when the server has none.
+2. `STARTUP`: the server's startup command (the raw `startup` column, which can be `null`).
+3. `P_SERVER_UUID`: the server UUID.
+4. Variables from the `environment_variables` list in `config/everest.php`. By default this is
+   `P_SERVER_ALLOCATION_LIMIT`, set to the server's allocation limit.
+5. Any variables registered at runtime by the Panel or its extensions.
+
+### `process_configuration`
+
+Built by `EggConfigurationService` from the egg's configuration (inherited from the parent egg when the egg copies
+its configuration from another egg).
+
+```json
+{
+  "startup": {
+    "done": [")! For help, type "],
+    "user_interaction": [],
+    "strip_ansi": false
+  },
+  "stop": {
+    "type": "command",
+    "value": "stop"
+  },
+  "configs": [
+    {
+      "parser": "properties",
+      "file": "server.properties",
+      "replace": [
+        { "match": "server-ip", "replace_with": "0.0.0.0" },
+        { "match": "server-port", "replace_with": "25565" },
+        { "match": "query.port", "replace_with": "25565" }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `startup.done` | array of strings | The egg's `done` value from its startup configuration. A single string is wrapped in an array. |
+| `startup.user_interaction` | array | Always empty. |
+| `startup.strip_ansi` | boolean | The egg's `strip_ansi` value, or `false`. |
+| `stop.type` | string | `command`, or `signal` when the egg's stop value starts with `^`. |
+| `stop.value` | string | For `command`, the stop command. For `signal`, the text after `^`, uppercased (for example `^C` becomes `C`, `^SIGINT` becomes `SIGINT`). |
+| `configs` | array | One entry per file in the egg's configuration files. See below. |
+
+Each entry in `configs` is the egg's configuration for that file with three changes:
+
+- `file` is added, set to the file name (the key in the egg's configuration).
+- `find` is removed and replaced by `replace`, a list of replacements.
+- Any other keys from the egg's entry (such as `parser`) are kept as they are.
+
+Files whose entry is not an object or has no `find` key are skipped.
+
+Each item in `replace` is one of:
+
+| Shape | When |
+|-------|------|
+| `{ "match": "<key>", "replace_with": <value> }` | The `find` value for the key is a plain value. |
+| `{ "match": "<key>", "if_value": "<old value>", "replace_with": <value> }` | The `find` value for the key is an object mapping old values to new values. One item is produced per pair. |
+
+Placeholders in string values are resolved by the Panel before they are sent:
+
+| Placeholder | Resolved to |
+|-------------|-------------|
+| `{{server.<path>}}` | The value at `<path>` in the legacy server structure. Missing paths become an empty string. |
+| `{{env.<NAME>}}` | The server's environment variable `<NAME>` (from `build.env` in the legacy structure). |
+| `{{config.<path>}}` | Left in place for Wings to resolve. |
+
+These legacy placeholders are rewritten first:
+
+| Written in the egg | Rewritten to |
+|--------------------|--------------|
+| `{{config.docker.interface}}` | `{{config.docker.network.interface}}` |
+| `{{server.build.env.SERVER_MEMORY}}`, `{{env.SERVER_MEMORY}}` | `{{server.build.memory}}` |
+| `{{server.build.env.SERVER_IP}}`, `{{env.SERVER_IP}}` | `{{server.build.default.ip}}` |
+| `{{server.build.env.SERVER_PORT}}`, `{{env.SERVER_PORT}}` | `{{server.build.default.port}}` |
+
+The legacy server structure used for `{{server.*}}` lookups has these paths: `uuid`, `build.default.ip`,
+`build.default.port`, `build.ports` (IP to ports), `build.env` (the same values as `settings.environment`),
+`build.oom_disabled`, `build.memory`, `build.swap`, `build.io`, `build.cpu`, `build.threads`, `build.disk`,
+`build.image`, `service.egg` (egg UUID), `service.skip_scripts`, `rebuild` (`false`) and `suspended` (`1` or `0`).
+
+## List servers
+
+`GET /api/remote/servers`
+
+Returns the configuration of every server on the calling node, paginated.
+
+```bash
+curl "https://panel.example.com/api/remote/servers?page=1&per_page=50" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN_ID.$TOKEN"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page` | integer | No | Page number. Default `1`. |
+| `per_page` | integer | No | Servers per page. Default `50`. Cast to an integer. Must be at least `1`. There is no upper limit. |
+
+### Response
+
+`200 OK`
+
+This endpoint uses Laravel's resource pagination format, **not** the `meta.pagination` format described in the
+introduction.
+
+```json
+{
+  "data": [
+    {
+      "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "settings": { "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "...": "..." },
+      "process_configuration": { "startup": { "...": "..." }, "stop": { "...": "..." }, "configs": [] }
+    }
+  ],
+  "links": {
+    "first": "https://panel.example.com/api/remote/servers?page=1",
+    "last": "https://panel.example.com/api/remote/servers?page=1",
+    "prev": null,
+    "next": null
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [],
+    "path": "https://panel.example.com/api/remote/servers",
+    "per_page": 50,
+    "to": 1,
+    "total": 1
+  }
+}
+```
+
+Each item in `data` has `uuid`, `settings` and `process_configuration`, as described in
+[Server configuration structure](#server-configuration-structure). `meta.links` is Laravel's list of page links
+(abbreviated as `[]` above).
+
+### Errors
+
+| Status | `detail` | When |
+|--------|----------|------|
+| `400` | `The "per_page" query parameter must be at least 1.` | `per_page` is `0`, negative, or not a number. |
+
+## Reset server states
+
+`POST /api/remote/servers/reset`
+
+Wings calls this when it starts, because a restart stops any install or backup restore that was running.
+
+For every server on the calling node whose status is `restoring_backup`, the Panel looks at the server's latest
+`server:backup.restore-started` activity log entry. If it has a backup subject, the Panel logs
+`server:backup.restore-failed` for the server and that backup.
+
+Then, in the same transaction, every server on the node whose status is `installing` or `restoring_backup` has its
+status set to `null` (a normal, installed state).
+
+No request body.
+
+### Response
+
+`204 No Content`
+
+:::info
+Servers that were mid-install are marked as installed (status `null`), not as `install_failed`.
+:::
+
+## Get a server's configuration
+
+`GET /api/remote/servers/{uuid}`
+
+Returns the configuration of one server. Wings uses this to sync a server's state with the Panel.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "settings": { "uuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "...": "..." },
+  "process_configuration": { "startup": { "...": "..." }, "stop": { "...": "..." }, "configs": [] }
+}
+```
+
+See [Server configuration structure](#server-configuration-structure) for the full contents. There is no top-level
+`uuid` key on this endpoint.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No server matches `{uuid}`, or the server is on a different node. The response does not reveal which. |
+
+## Get installation details
+
+`GET /api/remote/servers/{uuid}/install`
+
+Returns the egg's install script settings for a server. If the egg copies its install script from another egg, the
+copied values are returned.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "container_image": "ghcr.io/pterodactyl/installers:debian",
+  "entrypoint": "bash",
+  "script": "#!/bin/bash\n# Paper Installation Script\n..."
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `container_image` | string | Docker image to run the install script in. |
+| `entrypoint` | string | Command used to run the script, for example `bash` or `ash`. |
+| `script` | string or null | The install script. |
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No server matches `{uuid}`, or the server is on a different node. |
+
+## Report installation result
+
+`POST /api/remote/servers/{uuid}/install`
+
+Wings calls this when a server's install or reinstall finishes.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `successful` | boolean | Yes (must be present) | Whether the install script succeeded. |
+| `reinstall` | boolean | No | Whether this was a reinstall. |
+
+### What happens
+
+The server's status is set to:
+
+| Condition | New status |
+|-----------|------------|
+| The server's current status is `suspended` | `suspended` (unchanged) |
+| `successful` is true | `null` (installed) |
+| `successful` is false and `reinstall` is true | `reinstall_failed` |
+| `successful` is false otherwise | `install_failed` |
+
+`installed_at` is set to the current time in every case, including failures.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No server matches `{uuid}`, or the server is on a different node. |
+
+## Report transfer failure
+
+`POST /api/remote/servers/{uuid}/transfer/failure`
+
+Reports that transferring a server to another node failed. Only the transfer's **destination** node can call it.
+
+The Panel marks the server's active transfer as unsuccessful and releases the allocations reserved on the
+destination node (the new primary allocation and new additional allocations). The server stays on its original node.
+
+No request body.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No server matches `{uuid}`, or the calling node is not the transfer's destination node. |
+| `409` | `Server is not being transferred.` The server has no active transfer. |
+
+## Report transfer success
+
+`POST /api/remote/servers/{uuid}/transfer/success`
+
+Reports that a server was transferred to the calling node. Only the transfer's **destination** node can call it.
+
+In one transaction, the Panel:
+
+1. Releases the server's old allocations (old primary and old additional allocations).
+2. Assigns the new primary and new additional allocations to the server.
+3. Sets the server's `allocation_id` to the new primary allocation and `node_id` to the destination node.
+4. Marks the transfer as successful.
+
+It then asks Wings on the **old** node to delete the server. If the old node cannot be reached, the error is logged
+and the request still succeeds.
+
+No request body.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No server matches `{uuid}`, or the calling node is not the transfer's destination node. |
+| `409` | `Server is not being transferred.` The server has no active transfer. |

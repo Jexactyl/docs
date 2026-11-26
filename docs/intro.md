@@ -23,6 +23,8 @@ Want to install Jexpanel? Here are the options to get the ball rolling:
 
 - If you plan to **migrate from Jexactyl v3.x**, follow the [**Jexactyl Migration**](/docs/migrate/jexactyl)
 
+Building an integration? See the [**API Reference**](/docs/api/introduction).
+
 <FalconBanner compact />
 
 ## Support us!

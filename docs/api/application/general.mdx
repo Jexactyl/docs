@@ -1,0 +1,245 @@
+---
+sidebar_position: 1
+title: General
+---
+
+# General
+
+These endpoints return information about the Panel itself: the permissions of the calling admin, version and
+usage metrics, the administrative activity log, and the first-run setup wizard.
+
+## Get admin permissions
+
+`GET /api/application/permissions`
+
+**Admin permission:** None (any admin role)
+
+Returns the admin permissions of the calling account as a flat list of permission strings.
+
+- A root administrator gets `["*"]`, whether or not an admin role is also assigned.
+- Any other account gets the permission list of its admin role, or `[]` if the role has no permissions.
+
+```bash
+curl "https://panel.example.com/api/application/permissions" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "admin_permissions",
+  "attributes": {
+    "permissions": ["servers.read", "servers.update"]
+  }
+}
+```
+
+## Get version information
+
+`GET /api/application/overview/version`
+
+**Admin permission:** `overview.read`
+
+Returns the installed Panel version and the latest released Panel and Wings versions.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "panel": {
+    "current": "4.0.0",
+    "latest": "4.0.1"
+  },
+  "wings": {
+    "latest": "1.11.13"
+  },
+  "git": "89f90ad9"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `panel.current` | string | The installed version, from the `app.version` config value. |
+| `panel.latest` | string | The `tag_name` of the release at the configured panel CDN URL (`everest.cdn.panel_url`), with any leading `v` removed. `error` if it could not be fetched. |
+| `wings.latest` | string | The same for Wings (`everest.cdn.wings_url`). `error` if it could not be fetched. |
+| `git` | string or null | The first 8 characters of the current commit hash, when the Panel runs from a Git checkout. Otherwise `null`. |
+
+The latest versions are cached for `everest.cdn.cache_time` minutes (default `60`). If either CDN request does
+not return `200`, both `latest` values are `error` until the cache expires. The Git data is cached for 15 seconds.
+
+## Get metrics
+
+`GET /api/application/overview/metrics`
+
+**Admin permission:** `overview.read`
+
+Returns counts of the main resources on the Panel.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "nodes": 2,
+  "servers": {
+    "total": 41,
+    "suspended": 3,
+    "installing": 1
+  },
+  "users": {
+    "total": 120,
+    "admins": 2
+  },
+  "databases": 18,
+  "backups": 64,
+  "tickets": 4,
+  "billing": {
+    "revenue": 1520.5,
+    "orders_pending": 2,
+    "orders_this_month": 17,
+    "products": 6
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `nodes` | integer | Number of nodes. |
+| `servers.total` | integer | Number of servers. |
+| `servers.suspended` | integer | Servers with status `suspended`. |
+| `servers.installing` | integer | Servers with status `installing`, `install_failed` or `reinstall_failed`. |
+| `users.total` | integer | Number of users. |
+| `users.admins` | integer | Users with `root_admin` set. Accounts that only have an admin role are not counted. |
+| `databases` | integer | Number of server databases. |
+| `backups` | integer | Number of backups. |
+| `tickets` | integer | Tickets with status `pending`. |
+| `billing` | object | Only present when the billing module is enabled (`modules.billing.enabled`). |
+| `billing.revenue` | number | Sum of `total` over orders with status `processed`. |
+| `billing.orders_pending` | integer | Orders with status `pending`. |
+| `billing.orders_this_month` | integer | Orders created in the current calendar month. |
+| `billing.products` | integer | Number of billing products. |
+
+## List admin activity
+
+`GET /api/application/activity`
+
+**Admin permission:** `activity.read`
+
+Returns a paginated list of administrative activity log entries (entries with `is_admin` set). Entries with the
+event `server:file.upload` are never returned.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Defaults to `25`. Values above `100` are capped at `100`. There is no lower bound check. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[event]` | string | No | Partial match on the event name. |
+| `filter[ip]` | string | No | Partial match on the IP address. |
+| `filter[actor]` | string | No | Partial match on the username of the acting user. |
+| `filter[subject]` | string | No | Partial match on a subject's `name`, `username`, `identifier`, `uuid`, `title` or `code` column (whichever of these the subject's table has). |
+| `sort` | string | No | `timestamp` or `event`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `actor`. See [includes](/docs/api/introduction#including-related-resources). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "activity_log",
+      "attributes": {
+        "id": "356a192b7913b04c54574d18c28d46e6395428ab",
+        "log_id": 1,
+        "batch": null,
+        "event": "admin:link:create",
+        "is_api": true,
+        "ip": "203.0.113.10",
+        "description": "New custom link for client UI was made",
+        "properties": {
+          "name": "Status page",
+          "url": "https://status.example.com"
+        },
+        "has_additional_metadata": true,
+        "subjects": [
+          { "type": "link", "id": 3, "identifier": "Status page" }
+        ],
+        "timestamp": "2026-11-26T10:15:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 25,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | string | SHA-1 hash of the log ID. Only a rendering key, not a secret. |
+| `log_id` | integer | The log entry's database ID. |
+| `batch` | string or null | Batch UUID, when several entries were logged together. |
+| `event` | string | Event name, such as `admin:settings:update`. |
+| `is_api` | boolean | `true` when the action was made with an API key. |
+| `ip` | string | IP address of the request. |
+| `description` | string or null | Human readable description. |
+| `properties` | object | Extra data logged with the event. An array value `x` also adds `x_count`; when exactly one such count exists it is renamed `count`. An `ip` property is shown as `[hidden]` unless you are the actor. |
+| `has_additional_metadata` | boolean | `true` when `properties` has keys other than `ip`, `useragent`, `using_sftp` and those used in the event's translation string. |
+| `subjects` | array | The resources the action affected. Each item has `type` (the morph name, such as `server`, `user`, `node`, `link`, `api_key`), `id`, and `identifier` (the subject's first non-empty `name`, `username`, `identifier`, `uuid`, `title` or `code`, else `#<id>`; `null` if the subject no longer exists). A subject equal to the actor is left out. |
+| `timestamp` | string | ISO 8601 date. |
+
+With `include=actor`, `relationships.actor` holds the acting user as a `user` object (the same attributes as the
+Application API user resource), or `null` when the actor is not a user.
+
+## Get setup data
+
+`GET /api/application/setup/data`
+
+**Admin permission:** `overview.read`
+
+Returns resource counts used by the first-run setup wizard.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "nodes": 1,
+  "servers": 0,
+  "users": 1,
+  "eggs": 15
+}
+```
+
+## Finish setup
+
+`POST /api/application/setup/finish`
+
+**Admin permission:** `settings.update`
+
+Marks the Panel as set up. This stores `true` in the `settings::app:setup` setting (the `app.setup` config value).
+It takes no body.
+
+Logs the activity event `admin:setup:finish`.
+
+### Response
+
+`204 No Content`
