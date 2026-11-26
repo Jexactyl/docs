@@ -1,0 +1,163 @@
+---
+sidebar_position: 3
+title: API Keys
+---
+
+# API Keys
+
+These endpoints manage application API keys (keys with the `ptla_` prefix). See
+[authentication](/docs/api/introduction#authentication) for how keys are used.
+
+:::info
+An application key has the access of the account that owns it. The legacy `r_*` permission columns can still be
+set when creating a key, but the Panel never checks them. Nothing in the Panel calls `AdminAcl::check()`, and the
+Application API only looks at the key owner's root admin flag and admin role.
+:::
+
+## List application keys
+
+`GET /api/application/api`
+
+**Admin permission:** `api.read`
+
+Returns a paginated list of **all** application keys on the Panel, whichever account owns them. Client (`ptlc_`)
+keys are not included.
+
+```bash
+curl "https://panel.example.com/api/application/api?per_page=50" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the key ID. |
+| `filter[identifier]` | string | No | Partial match on the identifier. |
+| `filter[last_used_at]` | string | No | Partial match on the last used date. |
+| `sort` | string | No | `id`, `identifier` or `last_used_at`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "api_key",
+      "attributes": {
+        "id": 4,
+        "identifier": "ptla_aB3dE5fG7hJ",
+        "description": "Billing integration",
+        "allowed_ips": null,
+        "created_at": "2026-11-20T14:02:11+00:00",
+        "last_used_at": "2026-11-26T09:12:40Z"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Key ID. Use it to delete the key. |
+| `identifier` | string | The first 16 characters of the key: `ptla_` and 11 random characters. |
+| `description` | string | The key's memo. |
+| `allowed_ips` | array or null | IP restrictions. Keys created with this API have `null`. |
+| `created_at` | string | ISO 8601 date with offset. |
+| `last_used_at` | string or null | ISO 8601 date in UTC with a `Z` suffix, or `null` if the key was never used. |
+
+The secret part of the key is never returned.
+
+## Create an application key
+
+`POST /api/application/api`
+
+**Admin permission:** `api.create`
+
+Creates an application key owned by the calling account and returns the full key.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `memo` | string | Yes | A description of the key. At most 500 characters. |
+| `permissions` | object or null | No | Legacy permission columns. See below. |
+
+#### The `permissions` field
+
+`permissions` may only contain the legacy columns `r_servers`, `r_nodes`, `r_allocations`, `r_users`,
+`r_locations`, `r_nests`, `r_eggs`, `r_database_hosts` and `r_server_databases`. Each value must be an integer
+from `0` to `3` (the Panel UI sends `"0"`, `"1"` or `"2"`). Any other key is rejected with `422`. The values are
+stored but **not enforced**.
+
+Leave `permissions` out, or send `null` or `{}`, to set none of them. The columns then use their database default
+of `0`. Only these columns are taken from `permissions`, so it cannot change the key's owner, type, identifier or
+secret. The new key is always owned by the calling account.
+
+Example:
+
+```json
+{
+  "memo": "Billing integration",
+  "permissions": { "r_servers": 3 }
+}
+```
+
+Logs the activity event `admin:api-keys:create` with the new key as the subject.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "token": "ptla_aB3dE5fG7hJx9Kp2Lq8Rt4Vw6Yz1Ac3Ef5Gh7Jk9M"
+}
+```
+
+`token` is the full 48 character key: the 16 character identifier followed by the 32 character secret. It is
+shown only in this response.
+
+## Delete an application key
+
+`DELETE /api/application/api/{key}`
+
+**Admin permission:** `api.delete`
+
+Deletes an application API key.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `key` | The key's numeric `id`. |
+
+Logs the activity event `admin:api-keys:delete` with the key as the subject.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No API key has this ID, or the key is not an application (`ptla_`) key. Client keys cannot be deleted here. |

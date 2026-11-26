@@ -1,0 +1,341 @@
+---
+sidebar_position: 17
+title: Subusers
+---
+
+# Subusers
+
+Subusers are other accounts that have been given access to a server. Each subuser has a list of permission
+strings that decides which [Client API](/docs/category/client-api) server endpoints they can use. This page
+documents the subuser endpoints and lists [every permission](#permissions).
+
+The server owner and root administrators always have every permission on a server. Permissions are only checked
+for subusers.
+
+`{user}` is the subuser's **user UUID** (the `uuid` attribute below), not a numeric ID. A UUID that does not belong
+to a subuser of `{server}` returns `404`.
+
+A subuser cannot view, update or delete their own subuser entry. A request to `/users/{user}` where `{user}` is
+your own UUID returns `403` with the detail `This action is unauthorized.`
+
+## The subuser object
+
+The `object` name is `server_subuser`. The attributes describe the user account plus its permissions on this server.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `uuid` | string | The user's UUID. Use it as `{user}`. |
+| `identifier` | string | The same value as `uuid`. |
+| `username` | string | The user's username. |
+| `email` | string | The user's email address. |
+| `image` | string or null | The user's avatar URL, if set. |
+| `2fa_enabled` | boolean | Whether the user has TOTP two-factor authentication enabled. |
+| `created_at` | string | ISO 8601 time the user **account** was created. |
+| `permissions` | array of strings | The subuser's [permissions](#permissions) on this server. |
+
+## List subusers
+
+`GET /api/client/servers/{server}/users`
+
+**Subuser permission:** `user.read`
+
+Returns every subuser on the server. This list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997/users" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server_subuser",
+      "attributes": {
+        "uuid": "5f1c2a7e-3b0d-4b8e-9f43-2d6a1c9e7b10",
+        "identifier": "5f1c2a7e-3b0d-4b8e-9f43-2d6a1c9e7b10",
+        "username": "alex",
+        "email": "alex@example.com",
+        "image": null,
+        "2fa_enabled": false,
+        "created_at": "2026-09-14T09:31:02+00:00",
+        "permissions": [
+          "control.console",
+          "control.start",
+          "file.read",
+          "websocket.connect"
+        ]
+      }
+    }
+  ]
+}
+```
+
+## Add a subuser
+
+`POST /api/client/servers/{server}/users`
+
+**Subuser permission:** `user.create`
+
+Gives an account access to the server. If no account exists with the email address, a new account is created.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | A valid email address (strict RFC validation), 1 to 191 characters. |
+| `permissions` | array of strings | Yes | [Permission strings](#permissions) to grant. |
+
+```json
+{
+  "email": "alex@example.com",
+  "permissions": ["control.console", "control.start", "file.read"]
+}
+```
+
+How `permissions` is handled:
+
+- Strings that are not valid permissions are silently dropped.
+- `websocket.connect` is always added, even if you did not send it.
+- If you are a subuser yourself, you can only grant permissions you already have. Sending a valid permission you
+  don't have returns `403`. Unknown strings are ignored by this check, as they are dropped anyway.
+- Duplicates are removed. `permissions` is always stored and returned as a JSON array.
+
+If an account already exists with this email, it is added as the subuser. If not, a new account is created:
+
+- The username is the part of the email before `@`, with every character other than letters, digits, `_`, `.` and
+  `-` removed, cut to 64 characters, followed by 3 random characters.
+- The account gets a random password and is not an administrator.
+- The Panel does not send an email to the new user. They need to use the password reset flow to sign in.
+
+### Response
+
+`200 OK`
+
+Returns the new `server_subuser` object, in the same format as one item of [List subusers](#list-subusers).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server has reached its subuser limit. Detail: `You cannot add any more subusers to this server.` A limit of `-1` means unlimited. |
+| `400` | The email belongs to the server owner. Detail: `You cannot add the server owner as a subuser for this server.` |
+| `400` | The account is already a subuser on this server. Detail: `A user with that email address is already assigned as a subuser for this server.` |
+| `403` | You are a subuser and tried to grant a permission you don't have. Detail: `Cannot assign permissions to a subuser that your account does not actively possess.` |
+
+Logs the activity event `server:subuser.create`. When a new account is created, `user:user.create` is also logged.
+
+## View a subuser
+
+`GET /api/client/servers/{server}/users/{user}`
+
+**Subuser permission:** `user.read`
+
+Returns one subuser.
+
+### Response
+
+`200 OK`
+
+Returns a `server_subuser` object, in the same format as one item of [List subusers](#list-subusers).
+
+## Update a subuser
+
+`POST /api/client/servers/{server}/users/{user}`
+
+**Subuser permission:** `user.update`
+
+Replaces the subuser's permissions.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `permissions` | array of strings | Yes | The complete new list of [permission strings](#permissions). |
+
+The same rules apply as when [adding a subuser](#add-a-subuser): unknown strings are dropped, `websocket.connect`
+is always added, and a subuser can only grant permissions they have.
+
+If the resulting list is the same as the current one, nothing changes. Otherwise the permissions are saved and the
+Panel asks Wings to deauthorize the user on this server, which disconnects their open websocket and SFTP sessions so
+the new permissions apply. If Wings cannot be reached, the update still succeeds.
+
+```json
+{
+  "permissions": ["control.console", "control.start", "control.stop", "file.read"]
+}
+```
+
+### Response
+
+`200 OK`
+
+Returns the updated `server_subuser` object.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `403` | You are a subuser and tried to grant a permission you don't have. Detail: `Cannot assign permissions to a subuser that your account does not actively possess.` |
+
+Logs the activity event `server:subuser.update` when the permissions change. Its `revoked` property is `false` if
+Wings could not be reached.
+
+## Remove a subuser
+
+`DELETE /api/client/servers/{server}/users/{user}`
+
+**Subuser permission:** `user.delete`
+
+Removes the user's access to the server and asks Wings to disconnect their websocket and SFTP sessions for it. If
+Wings cannot be reached, the subuser is still removed. The user account itself is not deleted.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `server:subuser.delete`. Its `revoked` property is `false` if Wings could not be reached.
+
+## Permissions
+
+These are all the permission strings a subuser can have. They are the values used in `permissions` above, and the
+**Subuser permission** shown on each Client API server endpoint.
+
+### websocket
+
+Allows the user to connect to the server websocket, giving them access to view console output and realtime server
+stats.
+
+| Permission | Description |
+|------------|-------------|
+| `websocket.connect` | Allows a user to connect to the websocket instance for a server to stream the console. Always granted to every subuser. |
+
+### control
+
+Permissions that control a user's ability to control the power state of a server, or send commands.
+
+| Permission | Description |
+|------------|-------------|
+| `control.console` | Allows a user to send commands to the server instance via the console. |
+| `control.start` | Allows a user to start the server if it is stopped. |
+| `control.stop` | Allows a user to stop a server if it is running. |
+| `control.restart` | Allows a user to perform a server restart. This allows them to start the server if it is offline, but not put the server in a completely stopped state. |
+
+### user
+
+Permissions that allow a user to manage other subusers on a server. They will never be able to edit their own
+account, or assign permissions they do not have themselves.
+
+| Permission | Description |
+|------------|-------------|
+| `user.create` | Allows a user to create new subusers for the server. |
+| `user.read` | Allows the user to view subusers and their permissions for the server. |
+| `user.update` | Allows a user to modify other subusers. |
+| `user.delete` | Allows a user to delete a subuser from the server. |
+
+### file
+
+Permissions that control a user's ability to modify the filesystem for this server.
+
+| Permission | Description |
+|------------|-------------|
+| `file.create` | Allows a user to create additional files and folders via the Panel or direct upload. |
+| `file.read` | Allows a user to view the contents of a directory, but not view the contents of or download files. |
+| `file.read-content` | Allows a user to view the contents of a given file. This will also allow the user to download files. |
+| `file.update` | Allows a user to update the contents of an existing file or directory. |
+| `file.delete` | Allows a user to delete files or directories. |
+| `file.archive` | Allows a user to archive the contents of a directory as well as decompress existing archives on the system. |
+| `file.sftp` | Allows a user to connect to SFTP and manage server files using the other assigned file permissions. |
+
+### backup
+
+Permissions that control a user's ability to generate and manage server backups.
+
+| Permission | Description |
+|------------|-------------|
+| `backup.create` | Allows a user to create new backups for this server. |
+| `backup.read` | Allows a user to view all backups that exist for this server. |
+| `backup.delete` | Allows a user to remove backups from the system. Also required to lock and unlock backups. |
+| `backup.download` | Allows a user to download a backup for the server. Danger: this allows a user to access all files for the server in the backup. |
+| `backup.restore` | Allows a user to restore a backup for the server. Danger: this allows the user to delete all of the server files in the process. |
+
+### allocation
+
+Permissions that control a user's ability to modify the port allocations for this server.
+
+| Permission | Description |
+|------------|-------------|
+| `allocation.read` | Allows a user to view all allocations currently assigned to this server. Users with any level of access to this server can always view the primary allocation. |
+| `allocation.create` | Allows a user to assign additional allocations to the server. |
+| `allocation.update` | Allows a user to change the primary server allocation and attach notes to each allocation. |
+| `allocation.delete` | Allows a user to delete an allocation from the server. |
+
+### startup
+
+Permissions that control a user's ability to view this server's startup parameters.
+
+| Permission | Description |
+|------------|-------------|
+| `startup.read` | Allows a user to view the startup variables for a server. |
+| `startup.update` | Allows a user to modify the startup variables for the server. |
+| `startup.docker-image` | Allows a user to modify the Docker image used when running the server. |
+
+### database
+
+Permissions that control a user's access to the database management for this server.
+
+| Permission | Description |
+|------------|-------------|
+| `database.create` | Allows a user to create a new database for this server. |
+| `database.read` | Allows a user to view the database associated with this server. |
+| `database.update` | Allows a user to rotate the password on a database instance. If the user does not have the view_password permission they will not see the updated password. |
+| `database.delete` | Allows a user to remove a database instance from this server. |
+| `database.view_password` | Allows a user to view the password associated with a database instance for this server. |
+
+### schedule
+
+Permissions that control a user's access to the schedule management for this server.
+
+| Permission | Description |
+|------------|-------------|
+| `schedule.create` | Allows a user to create new schedules for this server. |
+| `schedule.read` | Allows a user to view schedules and the tasks associated with them for this server. |
+| `schedule.update` | Allows a user to update schedules and schedule tasks for this server. Also required to create, update and delete tasks, and to run a schedule manually. |
+| `schedule.delete` | Allows a user to delete schedules for this server. |
+
+### settings
+
+Permissions that control a user's access to the settings for this server.
+
+| Permission | Description |
+|------------|-------------|
+| `settings.rename` | Allows a user to rename this server and change the description of it. |
+| `settings.reinstall` | Allows a user to trigger a reinstall of this server. |
+
+### activity
+
+Permissions that control a user's access to the server activity logs.
+
+| Permission | Description |
+|------------|-------------|
+| `activity.read` | Allows a user to view the activity logs for the server. |
+
+### billing
+
+Permissions that control whether a user can interact with the billing system.
+
+| Permission | Description |
+|------------|-------------|
+| `billing.read` | Allows a user to view billing details for the server. |
+| `billing.renew` | Allows a user to renew the server with their payment details. |
+| `billing.update` | Update general billing settings for the server. |

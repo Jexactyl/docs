@@ -1,0 +1,211 @@
+---
+sidebar_position: 14
+title: Database Hosts
+---
+
+# Database Hosts
+
+A database host is a MySQL or MariaDB server that the Panel creates server databases on. These endpoints manage
+database hosts. To manage the databases of a single server, see the server database endpoints.
+
+In every path, `{databaseHost}` is the database host's numeric `id`.
+
+## The database host object
+
+```json
+{
+  "object": "database_host",
+  "attributes": {
+    "id": 1,
+    "name": "Primary MySQL",
+    "host": "db1.example.com",
+    "port": 3306,
+    "username": "jexpanel",
+    "created_at": "2026-11-20T14:02:11+00:00",
+    "updated_at": "2026-11-20T14:02:11+00:00"
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Database host ID. |
+| `name` | string | Display name. |
+| `host` | string | Hostname or IP address of the database server. |
+| `port` | integer | Port. |
+| `username` | string | Account the Panel uses to create databases and users. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+
+The password is never returned.
+
+**Includes:** `databases` (the server databases on this host, as server database objects). See
+[includes](/docs/api/introduction#including-related-resources).
+
+## List database hosts
+
+`GET /api/application/databases`
+
+**Admin permission:** `databases.read`
+
+Returns a paginated list of database hosts.
+
+```bash
+curl "https://panel.example.com/api/application/databases?sort=name" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `filter[host]` | string | No | Partial match on the host. |
+| `sort` | string | No | `id`, `name` or `host`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `databases`. |
+
+Filters are case-insensitive substring matches. A comma-separated value matches any of the values. There is no
+`filter[id]`.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "database_host",
+      "attributes": {
+        "id": 1,
+        "name": "Primary MySQL",
+        "host": "db1.example.com",
+        "port": 3306,
+        "username": "jexpanel",
+        "created_at": "2026-11-20T14:02:11+00:00",
+        "updated_at": "2026-11-20T14:02:11+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+## Get a database host
+
+`GET /api/application/databases/{databaseHost}`
+
+**Admin permission:** `databases.read`
+
+Returns one database host.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `databases`. |
+
+### Response
+
+`200 OK`
+
+A [database host object](#the-database-host-object).
+
+## Create a database host
+
+`POST /api/application/databases`
+
+**Admin permission:** `databases.create`
+
+Creates a database host. Before saving, the Panel connects to the host with the given credentials and runs
+`SELECT 1 FROM dual`. Logs the activity event `admin:database-hosts:create`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 191 characters. |
+| `host` | string | Yes | Only letters, digits, `_`, `-` and `.`. |
+| `port` | integer | Yes | 1 to 65535. |
+| `username` | string | Yes | Up to 32 characters. |
+| `password` | string | No | Can be `null`. Stored encrypted. |
+
+### Response
+
+`200 OK` (not `201`)
+
+A [database host object](#the-database-host-object).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `500` | The Panel could not connect to the host or run the test query. `detail` is the generic unexpected error message. Nothing is saved. |
+
+
+## Update a database host
+
+`PATCH /api/application/databases/{databaseHost}`
+
+**Admin permission:** `databases.update`
+
+Updates a database host, then connects to it with the resulting credentials and runs `SELECT 1 FROM dual`. Logs the
+activity event `admin:database-hosts:update`, with the request body (minus `password`) in the `new_data` property.
+
+### Request body
+
+JSON body. The rules are the same as [create a database host](#create-a-database-host), so `name`, `host`, `port`
+and `username` are required even though the method is `PATCH`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 191 characters. |
+| `host` | string | Yes | Only letters, digits, `_`, `-` and `.`. |
+| `port` | integer | Yes | 1 to 65535. |
+| `username` | string | Yes | Up to 32 characters. |
+| `password` | string | No | A new password. If missing, empty or `null`, the current password is kept. |
+
+### Response
+
+`200 OK`
+
+The updated [database host object](#the-database-host-object).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `500` | The Panel could not connect with the new settings. `detail` is the generic unexpected error message. Nothing is saved. |
+
+## Delete a database host
+
+`DELETE /api/application/databases/{databaseHost}`
+
+**Admin permission:** `databases.delete`
+
+Deletes a database host. Logs the activity event `admin:database-hosts:delete`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | Server databases still exist on the host. `detail` is `Cannot delete a database host server that has active databases linked to it.` |

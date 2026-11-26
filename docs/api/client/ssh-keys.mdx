@@ -1,0 +1,117 @@
+---
+sidebar_position: 5
+title: SSH Keys
+---
+
+# SSH Keys
+
+These endpoints manage the SSH public keys on your account. Wings accepts these keys for SFTP access to servers you
+can reach.
+
+None of these endpoints need a subuser permission.
+
+## List SSH keys
+
+`GET /api/client/account/ssh-keys`
+
+Returns every SSH key on the account. The list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/account/ssh-keys" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "ssh_key",
+      "attributes": {
+        "name": "Laptop",
+        "fingerprint": "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE=\n-----END PUBLIC KEY-----",
+        "created_at": "2026-08-01T16:20:00+00:00"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | string | The key's name. |
+| `fingerprint` | string | The SHA-256 fingerprint, base64 encoded without the trailing `=` and without a `SHA256:` prefix. Use it to remove the key. |
+| `public_key` | string | The key re-encoded in PKCS#8 PEM format, not the format you submitted. |
+| `created_at` | string | ISO 8601. |
+
+## Add an SSH key
+
+`POST /api/client/account/ssh-keys`
+
+Adds an SSH public key to the account.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | A name for the key. No length limit is enforced by validation. |
+| `public_key` | string | Yes | The public key, in any format the phpseclib library can read, for example an OpenSSH `ssh-ed25519 AAAA...` line or a PEM block. DSA keys are rejected. RSA keys must be at least 2048 bits. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "ssh_key",
+  "attributes": {
+    "name": "Laptop",
+    "fingerprint": "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8",
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE=\n-----END PUBLIC KEY-----",
+    "created_at": "2026-11-26T10:40:12+00:00"
+  }
+}
+```
+
+Logs the activity event `user:ssh-key.create` with the property `fingerprint`.
+
+### Errors
+
+All of these are `422` validation errors on the `public_key` field.
+
+| `detail` | When |
+|----------|------|
+| `The public key provided is not valid.` | The key cannot be parsed. |
+| `DSA keys are not supported.` | The key is a DSA key. |
+| `RSA keys must be at least 2048 bits in length.` | The key is an RSA key shorter than 2048 bits. |
+| `The public key provided already exists on your account.` | A key with the same fingerprint is already on your account. |
+
+## Remove an SSH key
+
+`POST /api/client/account/ssh-keys/remove`
+
+Removes an SSH key from the account. The key is soft-deleted: it stops working but its database row is kept.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `fingerprint` | string | Yes | The key's `fingerprint`, exactly as returned by the API. |
+
+### Response
+
+`204 No Content`
+
+If no key on your account has that fingerprint, nothing happens and the response is still `204`.
+
+When a key is removed, logs the activity event `user:ssh-key.delete` with the property `fingerprint`.

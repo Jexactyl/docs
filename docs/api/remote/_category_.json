@@ -1,0 +1,8 @@
+{
+  "label": "Remote (Wings) API",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Internal endpoints served under /api/remote that the Wings daemon calls on the Panel."
+  }
+}

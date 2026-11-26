@@ -1,0 +1,481 @@
+---
+sidebar_position: 10
+title: Servers
+---
+
+# Servers
+
+These endpoints return details about a single server, give access to its console and live stats, and send power
+actions and console commands. Every path starts with `/api/client/servers/{server}`. See
+[Client API access to servers](/docs/api/introduction#client-api-access-to-servers) for the values `{server}` accepts
+and who can access a server.
+
+## Server state and availability
+
+Before any endpoint under `/api/client/servers/{server}` runs, the Panel checks the server's state. A server is in a
+**restricted state** when any of these is true:
+
+- its `status` is `suspended`
+- its node is in maintenance mode
+- its `status` is `installing` or `install_failed`
+- its `status` is `restoring_backup`
+- it is being transferred to another node
+
+A `status` of `reinstall_failed` does **not** restrict access.
+
+While the server is in a restricted state, requests fail with `409 Conflict` (`ServerStateConflictException`), except:
+
+| Endpoint | Behaviour in a restricted state |
+|----------|---------------------------------|
+| `GET /api/client/servers/{server}` | Always available. |
+| `GET /api/client/servers/{server}/resources` | Available while the server is suspended or its node is in maintenance. Returns `409` in the other restricted states (installing, install failed, restoring a backup, being transferred), unless the server is also suspended or its node is in maintenance. |
+| `GET /api/client/servers/{server}/websocket` | Available to **root administrators only**, and only while the server is installing, has failed installation, is restoring a backup or is being transferred. Blocked for everyone while the server is suspended or its node is in maintenance. |
+| Everything else | `409` |
+
+The `409` `detail` depends on the reason, checked in this order:
+
+| Reason | `detail` |
+|--------|----------|
+| Suspended | `This server is currently suspended and the functionality requested is unavailable.` |
+| Node in maintenance | `The node of this server is currently under maintenance and the functionality requested is unavailable.` |
+| Installing or install failed | `This server has not yet completed its installation process, please try again later.` |
+| Restoring a backup | `This server is currently restoring from a backup, please try again later.` |
+| Being transferred | `This server is currently being transferred to a new machine, please try again later.` |
+
+
+## Get server details
+
+`GET /api/client/servers/{server}`
+
+**Subuser permission:** None (any user with access to the server)
+
+Returns the server, its allocations and its startup variables, plus a `meta` block describing your own access.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | Comma-separated. Available: `egg`, `subusers`. See [includes](/docs/api/introduction#including-related-resources). |
+
+`allocations` and `variables` are always included. The relationships depend on your permissions:
+
+| Relationship | Behaviour |
+|--------------|-----------|
+| `allocations` | All the server's allocations (`allocation` objects). Without `allocation.read`, only the primary allocation is returned and its `notes` is `null`. |
+| `variables` | The egg variables marked as user-viewable (`egg_variable` objects). Without `startup.read`, this is a `null_resource`. |
+| `egg` | The server's egg (`egg` object with `id`, `uuid`, `name`). |
+| `subusers` | The server's subusers (`server_subuser` objects). Without `user.read`, this is a `null_resource`. |
+
+A `null_resource` looks like `{ "object": "null_resource", "attributes": null }`.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "server",
+  "attributes": {
+    "server_owner": true,
+    "identifier": "1a7ce997",
+    "__deprecated_uuid_short": "1a7ce997",
+    "server_identifier": "1a7ce997",
+    "internal_id": 5,
+    "group_id": null,
+    "uuid": "1a7ce997-259b-452e-8b4e-cecc464142ca",
+    "name": "Survival",
+    "node": "Node 1",
+    "is_node_under_maintenance": false,
+    "sftp_details": {
+      "ip": "node1.example.com",
+      "port": 2022
+    },
+    "description": "",
+    "limits": {
+      "memory": 4096,
+      "swap": 0,
+      "disk": 10240,
+      "io": 500,
+      "cpu": 200,
+      "threads": null,
+      "oom_killer": false
+    },
+    "invocation": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}",
+    "docker_image": "ghcr.io/pterodactyl/yolks:java_21",
+    "egg_features": ["eula", "java_version", "pid_limit"],
+    "billing_product_id": null,
+    "feature_limits": {
+      "databases": 2,
+      "allocations": 3,
+      "backups": 5,
+      "subusers": 5
+    },
+    "status": null,
+    "renewal_date": null,
+    "is_transferring": false,
+    "relationships": {
+      "allocations": {
+        "object": "list",
+        "data": [
+          {
+            "object": "allocation",
+            "attributes": {
+              "id": 12,
+              "ip": "203.0.113.10",
+              "ip_alias": null,
+              "port": 25565,
+              "notes": null,
+              "is_default": true
+            }
+          }
+        ]
+      },
+      "variables": {
+        "object": "list",
+        "data": [
+          {
+            "object": "egg_variable",
+            "attributes": {
+              "name": "Server Jar File",
+              "description": "The name of the server jarfile to run the server with.",
+              "env_variable": "SERVER_JARFILE",
+              "default_value": "server.jar",
+              "server_value": "server.jar",
+              "is_editable": true,
+              "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "meta": {
+    "is_server_owner": true,
+    "user_permissions": ["*"]
+  }
+}
+```
+
+#### Server attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `server_owner` | boolean | `true` if you own the server. |
+| `identifier` | string | The 8 character short UUID. `__deprecated_uuid_short` and `server_identifier` contain the same value. |
+| `internal_id` | integer | The server's numeric ID. |
+| `group_id` | integer or null | The ID of the server group the server is in. |
+| `uuid` | string | The full UUID. |
+| `name` | string | Server name. |
+| `node` | string | The node's **name**. |
+| `is_node_under_maintenance` | boolean | Whether the node is in maintenance mode. |
+| `sftp_details.ip` | string | The node's SFTP alias if set, otherwise the node's FQDN. |
+| `sftp_details.port` | integer | The node's public SFTP port. |
+| `description` | string or null | Server description. |
+| `limits` | object | `memory`, `swap`, `disk` (MiB), `io`, `cpu` (percent), `threads` (string or null), `oom_killer` (boolean). |
+| `invocation` | string | The server's startup command with `{{VARIABLES}}` unreplaced. If the server has no custom startup command, the egg's startup command. |
+| `docker_image` | string | The Docker image the server runs on. |
+| `egg_features` | array of strings or null | The egg's features, inherited from its parent egg if the egg has none of its own. |
+| `billing_product_id` | integer or null | The billing product the server was purchased with. |
+| `feature_limits` | object | `databases`, `allocations`, `backups`, `subusers`. Each is an integer or `null`. |
+| `status` | string or null | `null` for a normal server, otherwise one of `installing`, `install_failed`, `reinstall_failed`, `suspended`, `restoring_backup`. |
+| `renewal_date` | string or null | ISO 8601 date-time in UTC. |
+| `is_transferring` | boolean | `true` while a transfer exists for the server. |
+
+#### Meta
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `is_server_owner` | boolean | `true` if you own the server. |
+| `user_permissions` | array of strings | Your subuser permissions on this server. The owner gets `["*"]`. A root administrator gets `["*", "admin.websocket.errors", "admin.websocket.install", "admin.websocket.transfer"]`. A subuser gets the permissions assigned to them. |
+
+## Get websocket credentials
+
+`GET /api/client/servers/{server}/websocket`
+
+**Subuser permission:** `websocket.connect`
+
+Returns a signed token and the URL of the server's websocket on Wings. The websocket streams console output and live
+stats. Send the token to Wings over the socket to authenticate. Request a new token before it expires.
+
+### Response
+
+`200 OK`
+
+This endpoint does not use the `object`/`attributes` envelope.
+
+```json
+{
+  "data": {
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIsImp0aSI6Ij...",
+    "socket": "wss://node1.example.com:8080/api/servers/1a7ce997-259b-452e-8b4e-cecc464142ca/ws"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `token` | A JWT signed with HMAC SHA-256 using the node's daemon token. |
+| `socket` | The node's connection address (`scheme://fqdn:public_port_http`) with `https://` changed to `wss://` (or `http://` to `ws://`), followed by `/api/servers/<server uuid>/ws`. |
+
+The token contains these claims:
+
+| Claim | Value |
+|-------|-------|
+| `iss` | The Panel URL (`app.url`). |
+| `aud` | The node's connection address. |
+| `jti` | MD5 hash of your user ID followed by the server UUID. Also sent as the `jti` header. |
+| `iat` | Time of issue. |
+| `nbf` | 5 minutes before the time of issue. |
+| `exp` | **10 minutes** after the time of issue. |
+| `server_uuid` | The server's UUID. |
+| `permissions` | The same list as `meta.user_permissions` on [Get server details](#get-server-details). Wings uses it to decide what you can do over the socket. |
+| `scope` | `websocket` |
+| `user_uuid` | Your user UUID. |
+| `user_id` | Your numeric user ID. Deprecated; kept for older Wings versions. |
+| `unique_id` | A random 16 character string. |
+
+If the server is being transferred and the transfer has been archived, the token and socket point to the **new**
+node instead of the current one.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `403` | You lack `websocket.connect`. `detail` is `You do not have permission to connect to this server's websocket.` |
+## Get resource usage
+
+`GET /api/client/servers/{server}/resources`
+
+**Subuser permission:** None (any user with access to the server)
+
+Returns the server's power state and current resource usage, as reported by Wings
+(`GET /api/servers/<uuid>` on the node). The result is cached for **20 seconds** per server, so repeated calls within
+that window return the same values.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "stats",
+  "attributes": {
+    "current_state": "running",
+    "is_suspended": false,
+    "resources": {
+      "memory_bytes": 1073741824,
+      "cpu_absolute": 12.483,
+      "disk_bytes": 524288000,
+      "network_rx_bytes": 20480,
+      "network_tx_bytes": 10240,
+      "uptime": 3600000
+    }
+  }
+}
+```
+
+| Attribute | Description |
+|-----------|-------------|
+| `current_state` | The power state reported by Wings (the Panel frontend expects `offline`, `starting`, `running` or `stopping`). Defaults to `stopped` if Wings does not report one. |
+| `is_suspended` | The suspension flag reported by Wings. Defaults to `false`. |
+| `resources.*` | Values from Wings' `utilization` object. Each defaults to `0` if missing. `uptime` is passed through as Wings reports it. |
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `504` | The Panel could not get the details from Wings. This endpoint always reports Wings failures as `504`, whatever status Wings returned. |
+
+## List activity
+
+`GET /api/client/servers/{server}/activity`
+
+**Subuser permission:** `activity.read`
+
+Returns the server's activity log, paginated. Events of type `server:file.upload` are never returned. If the Panel
+setting `APP_ACTIVITY_HIDE_ADMIN` is enabled, entries made by root administrators who are not the owner or a subuser
+of the server are hidden.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page` | integer | No | See [pagination](/docs/api/introduction#pagination). |
+| `per_page` | integer | No | Default `25`. Values above `100` are reduced to `100` (not rejected). |
+| `filter[event]` | string | No | Partial match on the event name, e.g. `filter[event]=server:file`. |
+| `sort` | string | No | `timestamp` or `-timestamp`. With no `sort`, no order is applied. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `actor` adds the user who performed the action (`user` object), or a `null_resource` if the actor was not a user. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "activity_log",
+      "attributes": {
+        "id": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "batch": null,
+        "event": "server:power.start",
+        "is_api": true,
+        "ip": "198.51.100.7",
+        "description": null,
+        "properties": {},
+        "has_additional_metadata": false,
+        "timestamp": "2026-11-26T10:15:30Z"
+      }
+    },
+    {
+      "object": "activity_log",
+      "attributes": {
+        "id": "89e6c98d92887913cadf06b2adb97f26cde4849b",
+        "batch": null,
+        "event": "server:file.delete",
+        "is_api": false,
+        "ip": null,
+        "description": null,
+        "properties": {
+          "directory": "/plugins/",
+          "files": ["old.jar", "older.jar"],
+          "count": 2
+        },
+        "has_additional_metadata": false,
+        "timestamp": "2026-11-26T10:12:02Z"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 2,
+      "count": 2,
+      "per_page": 25,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | string | SHA-1 hash of the entry's ID. Only a unique key; not usable elsewhere in the API. |
+| `batch` | string or null | Groups entries logged together. |
+| `event` | string | The event name, e.g. `server:power.start`. |
+| `is_api` | boolean | `true` if the action was made with an API key. |
+| `ip` | string or null | The IP address of the actor. Only shown if you performed the action or you are a root administrator, otherwise `null`. |
+| `description` | string or null | Free-text description, if any. |
+| `properties` | object | Event properties. An `ip` property is replaced with `[hidden]` unless you are the actor. A `directory` property is normalised to start and end with `/`. For each array property, a `<name>_count` property is added; if there is exactly one such array, the count is named `count` instead. |
+| `has_additional_metadata` | boolean | `true` if `properties` contains keys that are not used in the event's translated description (ignoring `ip`, `useragent` and `using_sftp`). |
+| `timestamp` | string | ISO 8601 date-time in UTC. |
+
+## Send a console command
+
+`POST /api/client/servers/{server}/command`
+
+**Subuser permission:** `control.console`
+
+Sends a command to the server's console. Wings receives it as `POST /api/servers/<uuid>/commands` with the body
+`{"commands": ["<command>"]}`. Logs the activity event `server:console.command` with the command as a property.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `command` | string | Yes | The command to send. At least 1 character. |
+
+```json
+{ "command": "say Hello" }
+```
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `502` | Wings responded with `502`, which it does when the server is not running. `detail` is `Server must be online in order to send commands.` |
+
+## Send a power action
+
+`POST /api/client/servers/{server}/power`
+
+**Subuser permission:** depends on `signal`: `start` needs `control.start`; `stop` and `kill` need `control.stop`;
+`restart` needs `control.restart`.
+
+Sends a power action to Wings (`POST /api/servers/<uuid>/power` with `{"action": "<signal>"}`). Logs the activity
+event `server:power.<signal>`, e.g. `server:power.start`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `signal` | string | Yes | One of `start`, `stop`, `restart`, `kill`. |
+
+```json
+{ "signal": "restart" }
+```
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `403` | A subuser sent a missing or unknown `signal`. The permission check runs before validation, and an unknown signal maps to a permission no one has. The owner and root administrators get `422` instead. |
+
+## Ask the AI assistant
+
+`POST /api/client/servers/{server}/ai`
+
+**Subuser permission:** `control.console`
+
+Sends a free-text query to Google Gemini (through the `gemini-api-php/client` library's `geminiPro()` model) using the
+Panel's configured AI key, and returns the generated text. The query is sent as-is; the Panel adds no server
+context to it. Nothing is logged to the activity log.
+
+This endpoint requires the Panel's AI module to allow user access (`AI_USER_ACCESS`, default `false`). If it doesn't,
+every request, including the owner's and root administrators', gets `403` with `This action is unauthorized.`
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | Yes | 1 to 2000 characters. |
+
+### Response
+
+`200 OK`
+
+The body is a single JSON **string**, not an object:
+
+```json
+"The error indicates that the server could not bind to port 25565 because ..."
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `403` | User access to the AI module is disabled (`detail` is `This action is unauthorized.`), or you lack `control.console`. |
+| `403` | The AI module itself is disabled (`AI_ENABLED`). `code` is `HttpForbiddenException` and `detail` is `The JexpanelAI module is not enabled.` |
+| `500` | The request to Gemini failed. |

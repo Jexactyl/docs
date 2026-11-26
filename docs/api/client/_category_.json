@@ -1,0 +1,8 @@
+{
+  "label": "Client API",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Endpoints served under /api/client for managing your own account, servers and billing."
+  }
+}

@@ -1,0 +1,551 @@
+---
+sidebar_position: 12
+title: Nodes
+---
+
+# Nodes
+
+These endpoints manage nodes: the machines running Wings that host servers. Allocations on a node have their own
+page, [Allocations](/docs/api/application/allocations).
+
+In every path, `{node}` is the node's numeric `id`.
+
+:::info
+`GET /api/application/nodes/deployable` is registered before `GET /api/application/nodes/{node}`, so the word
+`deployable` is never treated as a node ID.
+:::
+
+## The node object
+
+Every endpoint that returns a node uses the `node` object. Its attributes are the node's database columns (except the
+hidden `daemon_token_id` and `daemon_token`), with the timestamps reformatted and `allocated_resources` added.
+
+```json
+{
+  "object": "node",
+  "attributes": {
+    "id": 1,
+    "uuid": "8f6b5a8e-2f4c-4d39-9a1e-7c1d2b3a4e5f",
+    "public": true,
+    "name": "Node 1",
+    "description": "Primary EU node",
+    "database_host_id": null,
+    "fqdn": "node1.example.com",
+    "sftp_alias": null,
+    "listen_port_http": 8080,
+    "listen_port_sftp": 2022,
+    "public_port_http": 8080,
+    "public_port_sftp": 2022,
+    "scheme": "https",
+    "behind_proxy": false,
+    "maintenance_mode": false,
+    "memory": 16384,
+    "memory_overallocate": 0,
+    "disk": 512000,
+    "disk_overallocate": 0,
+    "upload_size": 100,
+    "daemon_base": "/var/lib/pterodactyl/volumes",
+    "created_at": "2026-11-20T14:02:11+00:00",
+    "updated_at": "2026-11-25T08:30:00+00:00",
+    "deployable": true,
+    "deployable_free": false,
+    "deployment_fee": 0,
+    "allocated_resources": {
+      "memory": 4096,
+      "disk": 20480
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Node ID. |
+| `uuid` | string | Node UUID. Wings uses it as its own `uuid`. |
+| `public` | boolean | Whether the node is public. Only public nodes are returned by [find deployable nodes](#find-deployable-nodes). |
+| `name` | string | Display name. |
+| `description` | string or null | Description. |
+| `database_host_id` | integer or null | The [database host](/docs/api/application/database-hosts) linked to this node. |
+| `fqdn` | string | Domain name or IP address the Panel uses to reach Wings. |
+| `sftp_alias` | string or null | Alternative SFTP address. |
+| `listen_port_http` | integer | Port Wings listens on for HTTP. |
+| `listen_port_sftp` | integer | Port Wings' SFTP server listens on. |
+| `public_port_http` | integer | Port the Panel connects to. Can differ from `listen_port_http` behind a proxy. |
+| `public_port_sftp` | integer | SFTP port shown to users. |
+| `scheme` | string | `http` or `https`. The Panel connects to `<scheme>://<fqdn>:<public_port_http>`. |
+| `behind_proxy` | boolean | Whether Wings is behind a proxy. When true, Wings' own SSL is disabled in the generated configuration. |
+| `maintenance_mode` | boolean | Whether the node is in maintenance mode. The Application API cannot change it. |
+| `memory` | integer | Total memory. Compared directly with servers' `memory` limits, so it uses the same unit. |
+| `memory_overallocate` | integer | Memory overallocation, in percent. `-1` or more. |
+| `disk` | integer | Total disk. Compared directly with servers' `disk` limits, so it uses the same unit. |
+| `disk_overallocate` | integer | Disk overallocation, in percent. `-1` or more. |
+| `upload_size` | integer | Maximum file upload size, sent to Wings as `api.upload_limit`. |
+| `daemon_base` | string | Directory on the node that holds server files. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+| `deployable` | boolean or null | Billing: whether the node can be chosen for paid deployments. |
+| `deployable_free` | boolean or null | Billing: whether the node can be chosen for free deployments. |
+| `deployment_fee` | number or null | Billing: extra fee for deploying on this node. |
+| `allocated_resources.memory` | integer | Sum of `memory` across all servers on the node. |
+| `allocated_resources.disk` | integer | Sum of `disk` across all servers on the node. |
+
+**Includes:** `allocations` (every allocation on the node, as [allocation](/docs/api/application/allocations#the-allocation-object)
+objects) and `servers` (every server on the node, as `server` objects). See
+[includes](/docs/api/introduction#including-related-resources).
+
+## List nodes
+
+`GET /api/application/nodes`
+
+**Admin permission:** `nodes.read`
+
+Returns a paginated list of all nodes.
+
+```bash
+curl "https://panel.example.com/api/application/nodes?per_page=50&sort=name" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the node ID. |
+| `filter[uuid]` | string | No | Partial match on the UUID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `filter[fqdn]` | string | No | Partial match on the FQDN. |
+| `filter[daemon_token_id]` | string | No | Partial match on the daemon token ID. |
+| `sort` | string | No | `id`, `uuid`, `name`, `fqdn`, `memory` or `disk`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `allocations`, `servers`. |
+
+Filters are case-insensitive substring matches. A comma-separated value matches any of the values.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "node",
+      "attributes": {
+        "id": 1,
+        "name": "Node 1",
+        "...": "see the node object"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+## Find deployable nodes
+
+`GET /api/application/nodes/deployable`
+
+**Admin permission:** `nodes.read`
+
+Returns the public nodes that have room for a server of the given size. A node qualifies when both of these hold:
+
+- (sum of `memory` of its servers) + `memory` is at most `node.memory × (1 + node.memory_overallocate / 100)`
+- (sum of `disk` of its servers) + `disk` is at most `node.disk × (1 + node.disk_overallocate / 100)`
+
+Only nodes with `public` set to true and `maintenance_mode` set to false are considered. This is the same node
+selection that server creation uses for automatic deployment. The billing flags `deployable` and `deployable_free`
+are not checked; they only control which nodes the billing store offers.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `memory` | integer | Yes | Memory the new server needs, in the same unit as server `memory` limits. `0` or more. |
+| `disk` | integer | Yes | Disk the new server needs, in the same unit as server `disk` limits. `0` or more. |
+| `page` | integer | No | `1` or more. If set, the result is paginated and this page is returned. |
+| `per_page` | integer | No | 1 to 100. Page size. Defaults to `50` when `page` is set. Setting `per_page` without `page` returns page 1. |
+| `include` | string | No | `allocations`, `servers`. |
+
+### Response
+
+`200 OK`
+
+A list of `node` objects. Each node has two extra attributes from the capacity query:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `sum_memory` | string | Total `memory` of the node's servers. MySQL returns this sum as a numeric string. |
+| `sum_disk` | string | Total `disk` of the node's servers. MySQL returns this sum as a numeric string. |
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "node",
+      "attributes": {
+        "id": 1,
+        "name": "Node 1",
+        "memory": 16384,
+        "memory_overallocate": 0,
+        "disk": 512000,
+        "disk_overallocate": 0,
+        "...": "see the node object",
+        "sum_memory": "4096",
+        "sum_disk": "20480",
+        "allocated_resources": {
+          "memory": 4096,
+          "disk": 20480
+        }
+      }
+    }
+  ]
+}
+```
+
+If neither `page` nor `per_page` is set, every matching node is returned with no pagination. Otherwise the response
+also has a `meta.pagination` block, and a `page` past the last page returns an empty `data` list.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | No node qualifies. `detail` is `No nodes satisfying the requirements specified for automatic deployment could be found.` |
+
+## Get a node
+
+`GET /api/application/nodes/{node}`
+
+**Admin permission:** `nodes.read`
+
+Returns one node, plus its resource usage as a percentage in `meta.utilization`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `allocations`, `servers`. |
+
+### Response
+
+`200 OK`
+
+Working out the utilization loads four extra values onto the node, so this endpoint's attributes include four keys
+that the other node endpoints don't return:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `sum_memory` | string or null | Total `memory` of the node's servers. `null` when the node has no servers. |
+| `sum_disk` | string or null | Total `disk` of the node's servers. `null` when the node has no servers. |
+| `total_allocations` | integer | Number of allocations on the node. |
+| `used_allocations` | integer | Number of allocations assigned to a server. |
+
+```json
+{
+  "object": "node",
+  "attributes": {
+    "id": 1,
+    "uuid": "8f6b5a8e-2f4c-4d39-9a1e-7c1d2b3a4e5f",
+    "name": "Node 1",
+    "memory": 16384,
+    "disk": 512000,
+    "...": "see the node object",
+    "sum_memory": "4096",
+    "sum_disk": "20480",
+    "total_allocations": 50,
+    "used_allocations": 3,
+    "allocated_resources": {
+      "memory": 4096,
+      "disk": 20480
+    }
+  },
+  "meta": {
+    "utilization": {
+      "memory": 25.0,
+      "disk": 4.0
+    }
+  }
+}
+```
+
+| Meta field | Type | Description |
+|------------|------|-------------|
+| `utilization.memory` | number | Total server `memory` as a percentage of the node's `memory`, rounded to 1 decimal place. Overallocation is ignored, so it can exceed 100. `0` if the node's `memory` is 0. |
+| `utilization.disk` | number | The same for disk. |
+
+## Get node configuration
+
+`GET /api/application/nodes/{node}/configuration`
+
+**Admin permission:** `nodes.read`
+
+Returns the Wings configuration for the node. Use it to set up Wings automatically on a new machine.
+
+:::danger
+The response contains the node's decrypted daemon token (`token`). Anyone holding it can act as the node.
+:::
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `format` | string | No | `yaml` returns YAML. Any other value, or no value, returns JSON. |
+
+### Response
+
+`200 OK`
+
+This endpoint does not use the `object`/`attributes` envelope. Without `format=yaml`, the body is JSON:
+
+```json
+{
+  "debug": false,
+  "uuid": "8f6b5a8e-2f4c-4d39-9a1e-7c1d2b3a4e5f",
+  "token_id": "aBcDeFgHiJkLmNoP",
+  "token": "<64 character daemon token>",
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "ssl": {
+      "enabled": true,
+      "cert": "/etc/letsencrypt/live/node1.example.com/fullchain.pem",
+      "key": "/etc/letsencrypt/live/node1.example.com/privkey.pem"
+    },
+    "upload_limit": 100
+  },
+  "system": {
+    "data": "/var/lib/pterodactyl/volumes",
+    "sftp": {
+      "bind_port": 2022
+    }
+  },
+  "allowed_mounts": [],
+  "remote": "https://panel.example.com"
+}
+```
+
+| Field | Source |
+|-------|--------|
+| `uuid` | The node's `uuid`. |
+| `token_id`, `token` | The node's daemon token ID and decrypted daemon token. |
+| `api.port` | `listen_port_http`. |
+| `api.ssl.enabled` | `true` only when `behind_proxy` is false **and** `scheme` is `https`. |
+| `api.ssl.cert`, `api.ssl.key` | Let's Encrypt paths built from the lower-cased `fqdn`. |
+| `api.upload_limit` | `upload_size`. |
+| `system.data` | `daemon_base`. |
+| `system.sftp.bind_port` | `listen_port_sftp`. |
+| `allowed_mounts` | The `source` path of every mount linked to the node. |
+| `remote` | The Panel's base URL. |
+
+With `format=yaml`, the same data is returned as YAML with 2-space indentation, with the `Content-Type`
+`application/yaml`.
+
+```yaml
+debug: false
+uuid: 8f6b5a8e-2f4c-4d39-9a1e-7c1d2b3a4e5f
+token_id: aBcDeFgHiJkLmNoP
+token: <64 character daemon token>
+api:
+  host: 0.0.0.0
+  port: 8080
+  ssl:
+    enabled: true
+    cert: /etc/letsencrypt/live/node1.example.com/fullchain.pem
+    key: /etc/letsencrypt/live/node1.example.com/privkey.pem
+  upload_limit: 100
+system:
+  data: /var/lib/pterodactyl/volumes
+  sftp:
+    bind_port: 2022
+allowed_mounts: []
+remote: 'https://panel.example.com'
+```
+
+## Get node system information
+
+`GET /api/application/nodes/{node}/information`
+
+**Admin permission:** `nodes.read`
+
+Asks Wings for the node's system information (`GET /api/system` on Wings) and returns a summary.
+
+### Response
+
+`200 OK`
+
+This endpoint does not use the `object`/`attributes` envelope.
+
+```json
+{
+  "version": "1.11.13",
+  "system": {
+    "type": "Linux",
+    "arch": "amd64",
+    "release": "6.8.0-48-generic",
+    "cpus": 8,
+    "supercharged": false
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | string or null | Wings version (Wings' `version`). |
+| `system.type` | string | Wings' `os`, in title case. `Unknown` if Wings did not send it. |
+| `system.arch` | string or null | Wings' `architecture`. |
+| `system.release` | string or null | Wings' `kernel_version`. |
+| `system.cpus` | integer or null | Wings' `cpu_count`. |
+| `system.supercharged` | boolean | Wings' `supercharged`. `false` if Wings did not send it. |
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `504`, `502` or Wings' status | The Panel could not reach Wings, or Wings returned an error. See `DaemonConnectionException` in [errors](/docs/api/introduction#errors). |
+
+## Get node utilization
+
+`GET /api/application/nodes/{node}/utilization`
+
+**Admin permission:** `nodes.read`
+
+Asks Wings for live resource usage (`GET /api/system/utilization` on Wings) and returns it.
+
+### Response
+
+`200 OK`
+
+This endpoint does not use the `object`/`attributes` envelope.
+
+```json
+{
+  "cpu": 12.5,
+  "memory": {
+    "total": 16777216000,
+    "used": 4294967296
+  },
+  "swap": {
+    "total": 2147483648,
+    "used": 0
+  },
+  "disk": {
+    "total": 536870912000,
+    "used": 21474836480
+  }
+}
+```
+
+The values are passed through from Wings' `cpu`, `memory_total`, `memory_used`, `swap_total`, `swap_used`,
+`disk_total` and `disk_used`. The Panel does not convert them. The Panel's admin UI treats `cpu` as a percentage and
+the other values as bytes.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `504`, `502` or Wings' status | The Panel could not reach Wings, or Wings returned an error. |
+
+## Create a node
+
+`POST /api/application/nodes`
+
+**Admin permission:** `nodes.create`
+
+Creates a node. The Panel generates the node's `uuid`, a 16 character daemon token ID and a 64 character daemon
+token. Logs the activity event `admin:nodes:create`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1 to 100 characters: letters, digits, underscores, spaces, `.` and `-`. |
+| `description` | string | No | Can be `null`. |
+| `fqdn` | string | Yes | Domain name or IP address of the node. |
+| `scheme` | string | Yes | Any string is accepted. Send `http` or `https`; it is used to build the Wings URL and the SSL setting. |
+| `listen_port_http` | integer | Yes | 1 to 65535. |
+| `public_port_http` | integer | Yes | 1 to 65535. |
+| `listen_port_sftp` | integer | Yes | 1 to 65535. |
+| `public_port_sftp` | integer | Yes | 1 to 65535. |
+| `memory` | integer | Yes | Total memory. At least `1`. |
+| `memory_overallocate` | integer | Yes | Percent. At least `-1`. |
+| `disk` | integer | Yes | Total disk. At least `1`. |
+| `disk_overallocate` | integer | Yes | Percent. At least `-1`. |
+| `sftp_alias` | string | No | Up to 255 characters. Can be `null`. |
+| `database_host_id` | integer | No | ID of an existing database host. Can be `null`. |
+| `public` | boolean | No | Defaults to `true`. |
+| `behind_proxy` | boolean | No | Defaults to `false`. |
+| `upload_size` | integer | No | 1 to 1024. Defaults to `100` (database default). |
+| `daemon_base` | string | No | Must start with `/` and contain only letters, digits, `_`, `.`, `-` and `/`. Defaults to `/var/lib/pterodactyl/volumes`. |
+| `deployable` | boolean | No | Can be `null`. Database default `false`. |
+| `deployable_free` | boolean | No | Can be `null`. Database default `false`. |
+| `deployment_fee` | number | No | At least `0`. Can be `null`. Database default `0`. |
+
+Any other field (for example `maintenance_mode`) is ignored. In validation messages, `daemon_base`, `upload_size` and
+`public` are named "Daemon Base Path", "File Upload Size Limit" and "Node Visibility".
+
+### Response
+
+`200 OK` (not `201`)
+
+A [node object](#the-node-object).
+
+## Update a node
+
+`PATCH /api/application/nodes/{node}`
+
+**Admin permission:** `nodes.update`
+
+Updates a node, then sends the new configuration to Wings (`POST /api/update` on Wings). Logs the activity event
+`admin:nodes:update`, with the raw request body in the `new_data` property.
+
+### Request body
+
+JSON body. The fields and rules are the same as [create a node](#create-a-node), **including which fields are
+required**. Even though the method is `PATCH`, you must send `name`, `fqdn`, `scheme`, all four ports, `memory`,
+`memory_overallocate`, `disk` and `disk_overallocate` every time.
+
+`daemon_base` is optional. If you leave it out, the node keeps its current value.
+
+### Response
+
+`200 OK`
+
+A [node object](#the-node-object), reloaded from the database.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The node was updated in the Panel, but the Panel could not send the new configuration to Wings. `detail` is `The daemon configuration has been updated, however there was an error encountered while attempting to automatically update the configuration file on the Daemon. You will need to manually update the configuration file (config.yml) for the daemon to apply these changes.` The changes are saved, but no activity event is logged. |
+
+## Delete a node
+
+`DELETE /api/application/nodes/{node}`
+
+**Admin permission:** `nodes.delete`
+
+Deletes a node. Logs the activity event `admin:nodes:delete`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The node still has servers. `detail` is `A node must have no servers linked to it in order to be deleted.` |

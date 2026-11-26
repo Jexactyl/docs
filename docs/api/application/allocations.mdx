@@ -1,0 +1,191 @@
+---
+sidebar_position: 13
+title: Allocations
+---
+
+# Allocations
+
+An allocation is an IP address and port on a node that a server can bind to. These endpoints list, create and
+delete the allocations of one node.
+
+In every path, `{node}` is the node's numeric `id` and `{allocation}` is the allocation's numeric `id`. An allocation
+that exists but belongs to a different node returns `404`.
+
+## The allocation object
+
+```json
+{
+  "object": "allocation",
+  "attributes": {
+    "id": 12,
+    "ip": "203.0.113.10",
+    "alias": "play.example.com",
+    "port": 25565,
+    "notes": null,
+    "server_id": 4,
+    "assigned": true
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Allocation ID. |
+| `ip` | string | IP address. |
+| `alias` | string or null | The IP alias (the `ip_alias` column). `null` when no alias is set. |
+| `port` | integer | Port. |
+| `notes` | string or null | Notes. |
+| `server_id` | integer or null | The server using this allocation, or `null`. |
+| `assigned` | boolean | `true` when `server_id` is not `null`. |
+
+**Includes:** `node` (a [node](/docs/api/application/nodes#the-node-object) object) and `server` (a `server` object;
+a `null_resource` when unassigned). See [includes](/docs/api/introduction#including-related-resources).
+
+## List allocations
+
+`GET /api/application/nodes/{node}/allocations`
+
+**Admin permission:** `nodes.read`
+
+Returns a paginated list of the node's allocations.
+
+```bash
+curl "https://panel.example.com/api/application/nodes/1/allocations?filter[server_id]=0&per_page=100" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the allocation ID. |
+| `filter[ip]` | string | No | Partial match on the IP address. |
+| `filter[port]` | string | No | Partial match on the port. `filter[port]=255` also matches `25565`. |
+| `filter[alias]` | string | No | Partial match on the IP alias. |
+| `filter[server_id]` | string | No | Exact match on the server ID. `0` returns only unassigned allocations. |
+| `filter[search]` | string | No | Matches allocations whose IP, port or IP alias contains the value. |
+| `sort` | string | No | `id`, `ip`, `port` or `server_id`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `node`, `server`. |
+
+`id`, `ip`, `port` and `alias` filters are case-insensitive substring matches, and a comma-separated value matches
+any of the values.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "allocation",
+      "attributes": {
+        "id": 13,
+        "ip": "203.0.113.10",
+        "alias": null,
+        "port": 25566,
+        "notes": null,
+        "server_id": null,
+        "assigned": false
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 100,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+## Create allocations
+
+`POST /api/application/nodes/{node}/allocations`
+
+**Admin permission:** `nodes.update`
+
+Creates one allocation for every combination of IP address and port in the request. Logs the activity event
+`admin:nodes:allocations:create`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ip` | string | Yes | An IPv4 address, a hostname, or an IPv4 CIDR block. See [IP addresses](#ip-addresses). |
+| `start_port` | integer | Yes | 1025 to 65535. |
+| `end_port` | integer | No | Last port of a range, inclusive. 1025 to 65535, and not lower than `start_port`. Can be `null`. |
+| `alias` | string | No | IP alias stored on every allocation created. Up to 191 characters. Can be `null`. |
+
+### Ports
+
+- If `end_port` is missing, `null` or equal to `start_port`, one port is created: `start_port`.
+- Otherwise every port from `start_port` to `end_port`, inclusive, is created.
+- A range can hold at most 1,000 ports. A larger range fails with `400` and nothing is created. The limit applies
+  per IP address, so a CIDR block with a 1,000 port range creates up to 1,000 allocations for each address.
+
+### IP addresses
+
+- **IPv4 address:** used as is.
+- **Hostname:** resolved to one IPv4 address with `gethostbyname()`, and the allocations are stored with that
+  address, not the hostname.
+- **CIDR block**, for example `203.0.113.0/29`: the mask must be a number from `27` to `32`. Allocations are created
+  for **every** address in the block, including the network and broadcast addresses. A `/27` creates 32 addresses.
+- **IPv6:** the code has a TODO noting that IPv6 is not properly supported. A single IPv6 address is passed through
+  unchanged. Do not send IPv6 CIDR blocks: the `/27` to `/32` mask check is applied to IPv6 too, where those masks
+  describe huge ranges.
+
+Allocations that already exist on the node with the same IP and port are skipped without an error.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The range holds more than 1,000 ports. `detail` is `Adding more than 1000 ports in a single range at once is not supported.` |
+| `400` | The CIDR mask is not a number from 27 to 32. `detail` is `CIDR notation only allows masks between /27 and /32.` |
+| `400` | The IP could not be parsed. `detail` is `Could not parse provided allocation IP address for <ip> (<resolved value>): <parser message>`. |
+
+## Delete an allocation
+
+`DELETE /api/application/nodes/{node}/allocations/{allocation}`
+
+**Admin permission:** `nodes.update`
+
+Deletes one allocation. Logs the activity event `admin:nodes:allocations:delete`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | A server is using the allocation. `detail` is `A server is currently assigned to this allocation. An allocation can only be deleted if no server is currently assigned.` |
+
+## Delete all unassigned allocations
+
+`DELETE /api/application/nodes/{node}/allocations`
+
+**Admin permission:** `nodes.update`
+
+Deletes every allocation on the node that is not assigned to a server. Allocations on other nodes are not touched.
+Logs the activity event `admin:nodes:allocations:delete-all`.
+
+### Response
+
+`204 No Content`

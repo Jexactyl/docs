@@ -1,0 +1,197 @@
+---
+sidebar_position: 11
+title: Server Databases
+---
+
+# Server Databases
+
+These endpoints manage the MySQL databases that belong to a server. The databases are created on a database host
+that the Panel manages. `{server}` is the server's numeric `id`. `{database}` is the database's numeric `id`
+(a hashid as used by the Client API is also accepted).
+
+## The server database object
+
+`object` is `server_database`.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Database ID. |
+| `database_host_id` | integer | ID of the database host. |
+| `server_id` | integer | ID of the server. |
+| `name` | string | Full database name, including the `s<server id>_` prefix. |
+| `username` | string | Database username, `u<server id>_` followed by 10 random characters. |
+| `remote` | string | Hosts the user may connect from, for example `%`. |
+| `max_connections` | integer or null | Connection limit for the user. Databases created through this API have `null`. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+
+### Includes
+
+| Include | Returns |
+|---------|---------|
+| `host` | The `database_host` object. |
+| `password` | The decrypted password, as `{ "object": null, "attributes": { "password": "..." } }`. |
+
+See [includes](/docs/api/introduction#including-related-resources).
+
+On the endpoints that take `{database}`, the database must belong to `{server}`. Otherwise the response is `404`.
+
+## List a server's databases
+
+`GET /api/application/servers/{server}/databases`
+
+**Admin permission:** `servers.read`
+
+Returns all databases of the server. This list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/application/servers/5/databases?include=host" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `host`, `password`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server_database",
+      "attributes": {
+        "id": 3,
+        "database_host_id": 1,
+        "server_id": 5,
+        "name": "s5_luckperms",
+        "username": "u5_hX2kP9aQ1z",
+        "remote": "%",
+        "max_connections": null,
+        "created_at": "2026-11-26T10:15:00+00:00",
+        "updated_at": "2026-11-26T10:15:00+00:00"
+      }
+    }
+  ]
+}
+```
+
+## Get a server database
+
+`GET /api/application/servers/{server}/databases/{database}`
+
+**Admin permission:** `servers.read`
+
+Returns a single database.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `host`, `password`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "server_database",
+  "attributes": {
+    "id": 3,
+    "database_host_id": 1,
+    "server_id": 5,
+    "name": "s5_luckperms",
+    "username": "u5_hX2kP9aQ1z",
+    "remote": "%",
+    "max_connections": null,
+    "created_at": "2026-11-26T10:15:00+00:00",
+    "updated_at": "2026-11-26T10:15:00+00:00",
+    "relationships": {
+      "password": {
+        "object": null,
+        "attributes": {
+          "password": "k8#Qz!m2Lr@9vXp4&Tn6Wc1e"
+        }
+      }
+    }
+  }
+}
+```
+
+The example was requested with `include=password`.
+
+## Create a server database
+
+`POST /api/application/servers/{server}/databases`
+
+**Admin permission:** `servers.update`
+
+Creates a database and a database user on a database host, and grants the user access to the database. The
+password is 24 random characters, including special characters.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `database` | string | Yes | 1 to 48 characters: letters, numbers, `-` and `_`. The stored name is `s<server id>_` followed by this value, cut so the full name is at most 48 characters. The full name must be unique for this server. |
+| `remote` | string | Yes | Hosts the user may connect from. 1 to 15 characters, only digits, `.` and `%` (for example `%` or `192.168.1.%`). |
+| `host` | integer | Yes | ID of an existing database host. |
+
+The server's database limit is enforced: if `feature_limits.databases` is not `null` and the server already has that
+many databases, the request fails. A limit of `0` therefore blocks database creation.
+
+If creating the database or user on the host fails, the Panel tries to drop whatever it created and returns the
+error.
+
+Logs the activity event `admin:servers:databases:create`.
+
+### Response
+
+`200 OK`. The body is the created `server_database` object.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `Operation aborted: creating a new database would put this server over the defined limit.` |
+| `422` | The name is already used by this server (`The Database Name has already been taken.`). |
+| `403` | `Client database creation is not enabled in this Panel.` Database creation is disabled in the Panel's configuration (`PTERODACTYL_CLIENT_DATABASES_ENABLED=false`). This setting also blocks administrators. |
+
+## Reset a database password
+
+`POST /api/application/servers/{server}/databases/{database}/reset-password`
+
+**Admin permission:** `servers.update`
+
+Generates a new 24 character password, saves it, and re-creates the database user on the host with the new
+password. There is no request body, and the new password is not returned. Use `include=password` on
+[Get a server database](#get-a-server-database) to read it.
+
+Logs the activity event `admin:servers:databases:reset-password`.
+
+### Response
+
+`204 No Content`
+
+## Delete a server database
+
+`DELETE /api/application/servers/{server}/databases/{database}`
+
+**Admin permission:** `servers.update`
+
+Drops the database and its user from the host, then deletes the Panel's record.
+
+Logs the activity event `admin:servers:databases:delete`.
+
+### Response
+
+`204 No Content`

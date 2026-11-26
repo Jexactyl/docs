@@ -1,0 +1,182 @@
+---
+sidebar_position: 5
+title: Webhooks
+---
+
+# Webhooks
+
+The webhook module posts a message to a URL when certain admin activity events are logged. These endpoints
+configure the module and the list of webhook events.
+
+## How webhooks are sent
+
+When the module is enabled (`modules.webhooks.enabled`), every activity log entry whose event name matches the
+`key` of an **enabled** webhook event sends a `POST` to the configured URL (`modules.webhooks.url`). The request is made during the
+API request that logged the activity. Any failure is ignored silently. The body is a Discord-style embed:
+
+```json
+{
+  "embeds": [
+    {
+      "title": "admin:link:create",
+      "description": "The event admin:link:create was executed",
+      "url": "https://panel.example.com/admin",
+      "timestamp": "2026-11-26T10:15:00+00:00",
+      "footer": {
+        "text": "Provided by Jexpanel v4",
+        "icon_url": "https://avatars.githubusercontent.com/u/91636558"
+      },
+      "author": {
+        "name": "admin@example.com",
+        "url": "https://panel.example.com/admin/users/1"
+      }
+    }
+  ]
+}
+```
+
+`title` and `description` come from the webhook event. `author` is the account that performed the action.
+
+### Webhook events
+
+The database seeder creates these events, each with the description `The event <key> was executed` and
+`enabled` set to `true`:
+
+- `admin:ai:update`
+- `admin:alert:update`
+- `admin:api-keys:create`, `admin:api-keys:delete`
+- `admin:auth:module:enable`, `admin:auth:module:disable`
+- `admin:billing:update`, `admin:billing:reset-keys`, `admin:billing:exception-resolve`,
+  `admin:billing:exception-resolve-all`
+- `admin:billing:categories:create`, `admin:billing:categories:update`, `admin:billing:categories:delete`
+- `admin:billing:config:export`, `admin:billing:config:import`
+- `admin:billing:products:create`, `admin:billing:products:update`, `admin:billing:products:delete`
+- `admin:database-hosts:create`, `admin:database-hosts:update`, `admin:database-hosts:delete`
+- `admin:eggs:create`, `admin:eggs:update`, `admin:eggs:delete`, `admin:eggs:export`
+- `admin:link:create`, `admin:link:update`, `admin:link:delete`
+- `admin:mounts:create`, `admin:mounts:update`, `admin:mounts:delete`
+- `admin:nests:create`, `admin:nests:import`, `admin:nests:update`, `admin:nests:delete`
+- `admin:nodes:create`, `admin:nodes:update`, `admin:nodes:delete`
+- `admin:servers:create`, `admin:servers:update`, `admin:servers:delete`
+- `admin:server-presets:create`, `admin:server-presets:update`, `admin:server-presets:delete`
+- `admin:tickets:create`, `admin:tickets:update`, `admin:tickets:settings`, `admin:tickets:delete`
+- `admin:users:create`, `admin:users:update`, `admin:users:suspend`, `admin:users:delete`
+- `admin:webhooks:update`, `admin:webhooks:test`
+
+A webhook is only sent if the activity event the Panel actually logs has exactly the same name.
+
+## List webhook events
+
+`GET /api/application/webhooks`
+
+**Admin permission:** `webhooks.read`
+
+Returns every webhook event. The list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/application/webhooks" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filter[key]` | string | No | Partial match on the event key. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "webhook_event",
+      "attributes": {
+        "id": 1,
+        "key": "admin:ai:update",
+        "description": "The event admin:ai:update was executed",
+        "enabled": true,
+        "created_at": "2026-11-01T12:00:00+00:00",
+        "updated_at": "2026-11-01T12:00:00+00:00"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Event ID. |
+| `key` | string | The activity event name. |
+| `description` | string | Used as the embed description. |
+| `enabled` | boolean | Whether a webhook is sent for this event. |
+| `created_at` | string | ISO 8601 date. |
+| `updated_at` | string | ISO 8601 date. |
+
+## Update webhook settings
+
+`PUT /api/application/webhooks`
+
+**Admin permission:** `webhooks.update`
+
+Sets one webhook module setting. The value is saved to `settings::modules:webhooks:<key>`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | Yes | `enabled` (config key `modules.webhooks.enabled`, default `WEBHOOK_ENABLED`, `false`) or `url` (config key `modules.webhooks.url`, default `WEBHOOK_URL`, empty). |
+| `value` | boolean, string or null | Depends on `key` | For `enabled`: required boolean (`true`, `false`, `1`, `0`, `"1"`, `"0"`). For `url`: a valid URL, or `null` to clear it. |
+
+Logs the activity event `admin:webhooks:update`.
+
+### Response
+
+`204 No Content`
+
+## Send a test webhook
+
+`POST /api/application/webhooks/test`
+
+**Admin permission:** `webhooks.update`
+
+Logs the activity event `admin:webhooks:test` and does nothing else. It takes no body. Because
+`admin:webhooks:test` is a seeded webhook event, logging it sends a webhook as described in
+[How webhooks are sent](#how-webhooks-are-sent), if the module is enabled and the `admin:webhooks:test` event is
+enabled.
+
+The response does not tell you whether the webhook was delivered. Delivery errors, including a missing URL, are
+ignored.
+
+### Response
+
+`204 No Content`
+
+## Toggle webhook events
+
+`PUT /api/application/webhooks/toggle`
+
+**Admin permission:** `webhooks.update`
+
+Sets `enabled` on one webhook event, or on all of them.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | integer or null | No | ID of an existing webhook event. If missing, `null` or `0`, every event is updated. |
+| `enabled` | boolean | Yes | The new value. |
+
+Logs the activity event `admin:webhooks:toggle` with `id` and `enabled` properties.
+
+### Response
+
+`204 No Content`

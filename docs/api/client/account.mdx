@@ -1,0 +1,292 @@
+---
+sidebar_position: 2
+title: Account
+---
+
+# Account
+
+These endpoints read and change the account that owns the API key or session: its email, password, avatar and
+activity log.
+
+All endpoints on this page act only on your own account. None of them need a subuser permission.
+`GET /api/client/account` stays available when the Panel requires two-factor authentication and you have not
+enrolled yet. The other endpoints on this page do not. See [two-factor enforcement](/docs/api/introduction#two-factor-enforcement).
+
+## Get account details
+
+`GET /api/client/account`
+
+Returns the account the request is authenticated as.
+
+```bash
+curl "https://panel.example.com/api/client/account" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "user",
+  "attributes": {
+    "id": 4,
+    "admin": false,
+    "username": "jane",
+    "email": "jane@example.com",
+    "language": "en",
+    "avatar_url": null
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | The user's numeric ID. |
+| `admin` | boolean | `true` if the account is a root administrator. Admin roles are not reflected here. |
+| `username` | string | Always lowercase. |
+| `email` | string | |
+| `language` | string | Language code, for example `en`. |
+| `avatar_url` | string or null | The custom avatar URL, or `null` if none is set. An uploaded avatar is returned as a full URL under `<APP_URL>/storage/`. |
+
+## Update email address
+
+`PUT /api/client/account/email`
+
+Changes the account's email address. Your current password is checked before the body is validated.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | A valid email address, 1 to 191 characters, not used by any other account. |
+| `password` | string | Yes | Your current password. It is checked, but not validated as a field, so a missing password fails the check with `400`. |
+
+### Response
+
+`204 No Content`
+
+The email can be changed at most **3 times in 24 hours**. Only real changes count: if the new address equals the
+current one (ignoring case), nothing is saved, the request returns `204` and does not count.
+
+A successful change logs the activity event `user:account.email-changed` with the properties `old` and `new`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The password is wrong. `detail`: `The password provided was invalid for this account.` |
+| `429` | The email was already changed 3 times in the last 24 hours. `detail`: `Your email address has been changed too many times today. Please try again later.` |
+
+## Update password
+
+`PUT /api/client/account/password`
+
+Changes the account's password.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `current_password` | string | Yes | Your current password. It is checked before the body is validated. |
+| `password` | string | Yes | The new password. At least 8 characters. |
+| `password_confirmation` | string | Yes | Must equal `password`. |
+
+### Response
+
+`204 No Content`
+
+When the request is made with a Panel session, every other session of the account is signed out. API key
+requests do not sign out other sessions. Existing API keys keep working.
+
+Logs the activity event `user:account.password-changed`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `current_password` is wrong. `detail`: `The password provided was invalid for this account.` |
+
+## Update avatar
+
+`POST /api/client/account/avatar`
+
+Sets a custom avatar, either by uploading an image or by giving an image URL.
+
+### Request body
+
+`multipart/form-data` to upload a file. A JSON body works when you only send `avatar_url`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `avatar` | file | Yes, unless `avatar_url` is sent | An image file: jpg, jpeg, png, gif, bmp or webp (SVG is not accepted). At most 2048 KB. |
+| `avatar_url` | string | Yes, unless `avatar` is sent | A valid URL, at most 500 characters. |
+
+How the fields are used:
+
+- If a file is uploaded in `avatar`, it is stored on the Panel's public disk under `avatars/` and `avatar_url` is
+  ignored.
+- Otherwise the avatar is set to `avatar_url`.
+- If neither field is sent (or both are empty), the request fails with `422`. To remove the avatar, use
+  [Remove avatar](#remove-avatar).
+
+In every case, a previously uploaded avatar file is deleted from the Panel's storage. A previous avatar that was an
+external `http://` or `https://` URL is simply replaced.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "user",
+  "attributes": {
+    "id": 4,
+    "admin": false,
+    "username": "jane",
+    "email": "jane@example.com",
+    "language": "en",
+    "avatar_url": "https://panel.example.com/storage/avatars/Qf3mJx0w9bK1nYp2Tz6rVh8cLs4aEdUoGi7NjXk5.png"
+  }
+}
+```
+
+The response has the same format as [Get account details](#get-account-details).
+
+Logs the activity event `user:account.avatar-changed`.
+
+## Remove avatar
+
+`DELETE /api/client/account/avatar`
+
+Removes the custom avatar. If the avatar was an uploaded file, the file is deleted from storage. The Panel then
+falls back to its generated avatar.
+
+### Response
+
+`200 OK`
+
+Returns the account in the same format as [Get account details](#get-account-details), with `avatar_url` set to
+`null`.
+
+Logs the activity event `user:account.avatar-changed`.
+
+## List account activity
+
+`GET /api/client/account/activity`
+
+Returns a paginated list of activity log entries whose subject is your account. Entries marked as admin-only
+actions and `server:file.upload` events are never returned.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page. Defaults to `5`. Values above `100` are reduced to `100`. There is no minimum check. |
+| `page` | integer | No | Page number. See [pagination](/docs/api/introduction#pagination). |
+| `filter[event]` | string | No | Partial, case-insensitive match on the event name, for example `filter[event]=api-key`. |
+| `sort` | string | No | Only `timestamp` or `-timestamp`. Without it, no order is applied. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `include` | string | No | `actor`: the user who performed the action. See [includes](/docs/api/introduction#including-related-resources). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "activity_log",
+      "attributes": {
+        "id": "3c1f8a7e1b0d2a9c4b6e5f7081a2b3c4d5e6f708",
+        "batch": null,
+        "event": "user:api-key.create",
+        "is_api": false,
+        "ip": "203.0.113.10",
+        "description": null,
+        "properties": {
+          "identifier": "ptlc_Xk2mP9qL7vR"
+        },
+        "has_additional_metadata": false,
+        "timestamp": "2026-11-20T14:03:12.000000Z",
+        "relationships": {
+          "actor": {
+            "object": "user",
+            "attributes": {
+              "uuid": "5d2f6a8e-3a4b-4c1d-9e7f-0a1b2c3d4e5f",
+              "identifier": "5d2f6a8e-3a4b-4c1d-9e7f-0a1b2c3d4e5f",
+              "username": "jane",
+              "email": "jane@example.com",
+              "image": null,
+              "2fa_enabled": true,
+              "created_at": "2025-03-02T10:00:00+00:00"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 5,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | string | SHA-1 hash of the log entry's ID. Only useful as a unique key. |
+| `batch` | string or null | A UUID shared by entries logged together, or `null`. |
+| `event` | string | Event name, for example `user:account.email-changed`. |
+| `is_api` | boolean | `true` if the action was performed with an API key. |
+| `ip` | string or null | The IP address the action came from. `null` unless you performed the action yourself or you are a root administrator. |
+| `description` | string or null | Optional free-text description. |
+| `properties` | object | Extra data for the event. Always an object (empty when there is none). A property named `ip` shows `[hidden]` unless you performed the action. For each array property `<key>`, a `<key>_count` property is added; if exactly one array property exists, its count is named `count` instead. A `directory` property is normalised to start and end with `/`. |
+| `has_additional_metadata` | boolean | `true` if `properties` contains keys that are not used by the event's translated description and are not `ip`, `useragent` or `using_sftp`. |
+| `timestamp` | string | ISO 8601 with microseconds, in UTC. |
+
+The `actor` include is a `user` object with the attributes shown above, or a `null_resource` when the actor was
+not a user.
+
+## Set up account
+
+`POST /api/client/account/setup`
+
+Sets the username and password of an account that is still waiting to be set up. Accounts created through an
+OAuth/SSO login (Discord or Google) get a placeholder username starting with `null_user_`, and the Panel's frontend
+uses this endpoint to replace it. Once the username no longer starts with `null_user_`, the account counts as set
+up and this endpoint is rejected. It does not ask for the current password.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `username` | string | Yes | 3 to 191 characters, not used by any other account. Must start and end with a letter or number and contain only letters, numbers, `-`, `_` and `.`. Must not start with `null_user_` (any case). It is stored in lowercase. |
+| `password` | string | Yes | The new password. At least 8 characters. |
+
+### Response
+
+`204 No Content`
+
+No activity event is logged.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The account has already been set up (its username does not start with `null_user_`). `detail`: `This account has already been set up.` |

@@ -1,0 +1,131 @@
+---
+sidebar_position: 4
+title: API Keys
+---
+
+# API Keys
+
+These endpoints manage the client API keys (`ptlc_` keys) on your own account. See
+[authentication](/docs/api/introduction#api-keys) for how keys are built and used.
+
+None of these endpoints need a subuser permission.
+
+## List API keys
+
+`GET /api/client/account/api-keys`
+
+Returns every client API key on the account. The list is not paginated. The secret part of a key is never returned.
+
+```bash
+curl "https://panel.example.com/api/client/account/api-keys" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "api_key",
+      "attributes": {
+        "identifier": "ptlc_Xk2mP9qL7vR",
+        "description": "Deploy script",
+        "allowed_ips": ["203.0.113.10", "198.51.100.0/24"],
+        "last_used_at": "2026-11-25T18:02:41.000000Z",
+        "created_at": "2026-09-14T12:00:00+00:00"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `identifier` | string | The 16 character identifier: `ptlc_` followed by 11 random characters. Use it to delete the key. |
+| `description` | string | The key's description. |
+| `allowed_ips` | array of strings | IP addresses and CIDR ranges allowed to use the key. An empty array means any address. |
+| `last_used_at` | string or null | When the key was last used, as an ISO 8601 string with microseconds in UTC, or `null` if never. |
+| `created_at` | string | ISO 8601. |
+
+## Create an API key
+
+`POST /api/client/account/api-keys`
+
+Creates a new client API key. An account can have at most **25** client API keys.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string | Yes | At most 500 characters. Must not be empty. |
+| `allowed_ips` | array of strings | No | Up to 50 entries. Each must be a valid IPv4 or IPv6 address or CIDR range. May be `null`. Omit it, or send an empty array, to allow any address. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "api_key",
+  "attributes": {
+    "identifier": "ptlc_Xk2mP9qL7vR",
+    "description": "Deploy script",
+    "allowed_ips": [],
+    "last_used_at": null,
+    "created_at": "2026-11-26T10:12:09+00:00"
+  },
+  "meta": {
+    "secret_token": "a8Df0QwZ3npL4sT9rB2cGm7hY1uK5eVn"
+  }
+}
+```
+
+`meta.secret_token` is the 32 character **secret** only. The full API key is the `identifier` followed directly by
+`secret_token`:
+
+```text
+ptlc_Xk2mP9qL7vRa8Df0QwZ3npL4sT9rB2cGm7hY1uK5eVn
+```
+
+The secret is returned only in this response. Store it now: the Panel cannot show it again.
+
+Logs the activity event `user:api-key.create` with the property `identifier`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The account already has 25 client API keys. `detail`: `You have reached the account limit for number of API keys.` |
+| `422` | An `allowed_ips` entry is not a valid address or range. The error is on `allowed_ips.<index>` with the detail `"<value>" is not a valid IP address or CIDR range.` |
+
+## Delete an API key
+
+`DELETE /api/client/account/api-keys/{identifier}`
+
+Deletes one of your client API keys. The key stops working immediately. You can delete the key you are using to
+make the request.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `identifier` | The key's 16 character `identifier`, for example `ptlc_Xk2mP9qL7vR`. |
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `user:api-key.delete` with the property `identifier`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No client API key on your account has that identifier. |

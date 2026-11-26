@@ -1,0 +1,74 @@
+---
+sidebar_position: 4
+title: AI
+---
+
+# AI
+
+These endpoints configure the JexpanelAI module and send queries to it. Queries are answered by Google Gemini,
+through the `gemini-api-php/client` library.
+
+## Update AI settings
+
+`PUT /api/application/ai/settings`
+
+**Admin permission:** `ai.update`
+
+Updates the AI module settings. Only the fields you send are saved, each to `settings::modules:ai:<field>`
+(config key `modules.ai.<field>`). A field sent as `null` is saved as an empty string.
+
+```bash
+curl -X PUT "https://panel.example.com/api/application/ai/settings" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "key": "YOUR_GEMINI_API_KEY"}'
+```
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean or null | No | Enable the AI module. Default from `.env`: `AI_ENABLED` (`false`). |
+| `key` | string, boolean or null | No | Gemini API key. A boolean value is accepted but ignored and not saved. Any other non-string value is rejected with `422`. Default: `AI_KEY` (empty). |
+| `user_access` | boolean or null | No | Let users query the AI from the Client API. Default: `AI_USER_ACCESS` (`false`). |
+
+Logs the activity event `admin:ai:update` with the submitted settings in the `settings` property. A string `key`
+is logged as `[redacted]`.
+
+### Response
+
+`204 No Content`
+
+## Query the AI
+
+`POST /api/application/ai/query`
+
+**Admin permission:** `ai.read`
+
+Sends a prompt to the Gemini Pro model, using the configured key, and returns the text of the answer.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | Yes | The prompt. At least 3 characters. |
+
+### Response
+
+`200 OK`. The body is the answer as a JSON string:
+
+```json
+"To add an allocation to a node, open the node in the admin area and ..."
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The AI module is disabled (`modules.ai.enabled` is false). `detail` is `The JexpanelAI module is not enabled.` |
+| `500` | The request to Gemini fails, for example because the key is missing or invalid. |

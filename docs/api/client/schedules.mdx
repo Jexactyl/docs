@@ -1,0 +1,428 @@
+---
+sidebar_position: 15
+title: Schedules
+---
+
+# Schedules
+
+Schedules run a list of tasks against a server on a cron timetable. Each task sends a console command, sends a
+power action, or creates a backup. These endpoints create and manage schedules and their tasks.
+
+`{schedule}` and `{task}` are the numeric `id` of the schedule or task. A schedule that does not belong to
+`{server}`, or a task that does not belong to `{schedule}`, returns `404` with the detail
+`The requested resource was not found for this server.`
+
+## The schedule object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Schedule ID. Use it as `{schedule}`. |
+| `name` | string | Schedule name. |
+| `cron.day_of_week` | string | Cron day-of-week field. |
+| `cron.day_of_month` | string | Cron day-of-month field. |
+| `cron.month` | string | Cron month field. |
+| `cron.hour` | string | Cron hour field. |
+| `cron.minute` | string | Cron minute field. |
+| `is_active` | boolean | Whether the schedule runs automatically. |
+| `is_processing` | boolean | `true` while the schedule's tasks are running. |
+| `only_when_online` | boolean | If `true`, the schedule only runs while the server is running or starting. |
+| `last_run_at` | string or null | ISO 8601 time the schedule last finished. `null` if it has never run. |
+| `next_run_at` | string or null | ISO 8601 time of the next run, calculated from the cron fields. |
+| `created_at` | string | ISO 8601 creation time. |
+| `updated_at` | string | ISO 8601 time of the last change. |
+| `relationships.tasks` | list | The schedule's tasks. Always included. |
+
+## The task object
+
+The `object` name is `schedule_task`.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Task ID. Use it as `{task}`. |
+| `sequence_id` | integer | Position of the task in the schedule. Tasks run in ascending `sequence_id` order. |
+| `action` | string | `command`, `power` or `backup`. |
+| `payload` | string | Action input. See [Task actions](#task-actions). Empty string for a backup task with no payload. |
+| `time_offset` | integer | Seconds to wait before running this task. |
+| `is_queued` | boolean | `true` while the task is queued to run. |
+| `continue_on_failure` | boolean | Whether later tasks still run if this task cannot reach the node. |
+| `created_at` | string | ISO 8601 creation time. |
+| `updated_at` | string | ISO 8601 time of the last change. |
+
+### Task actions
+
+| `action` | `payload` | What happens |
+|----------|-----------|--------------|
+| `command` | Required. The console command to send. | The command is sent to the server through Wings. |
+| `power` | Required. The power action. | The payload is sent to Wings as a power action. The Panel does not validate the value. Use one of `start`, `stop`, `restart` or `kill`, the values the server power endpoint accepts. |
+| `backup` | Optional. Files to ignore, one per line. | A backup of the server is created. Each line of the payload (split on `\n`) becomes an ignored file pattern. Empty lines are dropped. |
+
+A backup task started by a schedule may delete a backup to make room: if the server is at its backup limit,
+the oldest backup that is not locked and has not failed is deleted first. If all such backups are locked, or the
+server's backup limit is `0`, the task fails. See [Backups](/docs/api/client/backups#create-a-backup).
+
+### How a schedule runs
+
+- When the schedule runs, the task with the lowest `sequence_id` is queued after its `time_offset` seconds.
+- When a task finishes, the next task (next higher `sequence_id`) is queued after its own `time_offset` seconds.
+  So `time_offset` is a delay relative to the end of the previous task.
+- If a task fails, the remaining tasks do not run. The exception is a task with `continue_on_failure` set to `true`
+  that fails because the Panel could not connect to Wings. In that case the next task still runs.
+- When the last task finishes, or a task fails, `is_processing` is set to `false` and `last_run_at` is set.
+- If `only_when_online` is `true` and Wings reports the server as `offline` or `stopping` (or Wings cannot be
+  reached), no tasks run. The schedule is marked as finished.
+- If a schedule has been deactivated (`is_active` is `false`) by the time a queued task runs, that task and the
+  rest of the schedule are skipped. Manual runs through [Run a schedule now](#run-a-schedule-now) ignore this.
+- If the server has any status set when a task is about to run (for example installing, suspended or restoring a
+  backup), that task and the rest of the schedule are skipped and the schedule is marked as finished.
+
+### Task limit
+
+A schedule can have at most **10** tasks by default. Change this with the `PTERODACTYL_PER_SCHEDULE_TASK_LIMIT`
+environment variable in the Panel's `.env` file.
+
+## List schedules
+
+`GET /api/client/servers/{server}/schedules`
+
+**Subuser permission:** `schedule.read`
+
+Returns every schedule on the server, with its tasks. This list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997/schedules" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server_schedule",
+      "attributes": {
+        "id": 4,
+        "name": "Nightly restart",
+        "cron": {
+          "day_of_week": "*",
+          "day_of_month": "*",
+          "month": "*",
+          "hour": "4",
+          "minute": "0"
+        },
+        "is_active": true,
+        "is_processing": false,
+        "only_when_online": true,
+        "last_run_at": "2026-11-26T04:00:31+00:00",
+        "next_run_at": "2026-11-27T04:00:00+00:00",
+        "created_at": "2026-10-02T18:12:44+00:00",
+        "updated_at": "2026-11-26T04:00:31+00:00",
+        "relationships": {
+          "tasks": {
+            "object": "list",
+            "data": [
+              {
+                "object": "schedule_task",
+                "attributes": {
+                  "id": 11,
+                  "sequence_id": 1,
+                  "action": "command",
+                  "payload": "say Restarting in 60 seconds",
+                  "time_offset": 0,
+                  "is_queued": false,
+                  "continue_on_failure": false,
+                  "created_at": "2026-10-02T18:13:10+00:00",
+                  "updated_at": "2026-11-26T04:00:00+00:00"
+                }
+              },
+              {
+                "object": "schedule_task",
+                "attributes": {
+                  "id": 12,
+                  "sequence_id": 2,
+                  "action": "power",
+                  "payload": "restart",
+                  "time_offset": 60,
+                  "is_queued": false,
+                  "continue_on_failure": false,
+                  "created_at": "2026-10-02T18:13:41+00:00",
+                  "updated_at": "2026-11-26T04:00:31+00:00"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+## Create a schedule
+
+`POST /api/client/servers/{server}/schedules`
+
+**Subuser permission:** `schedule.create`
+
+Creates a schedule with no tasks. Add tasks with [Create a task](#create-a-task). `next_run_at` is calculated
+from the cron fields.
+
+### Request body
+
+JSON body. The five cron fields are combined in the order `minute hour day_of_month month day_of_week` and must form
+a valid cron expression.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Up to 191 characters. |
+| `minute` | string | Yes | Cron minute field, e.g. `0`, `*/15`. |
+| `hour` | string | Yes | Cron hour field. |
+| `day_of_month` | string | Yes | Cron day-of-month field. |
+| `month` | string | Yes | Cron month field. |
+| `day_of_week` | string | Yes | Cron day-of-week field. |
+| `is_active` | boolean | No | If sent, must not be empty. Defaults to `true`. |
+| `only_when_online` | boolean | No | If sent, must not be empty. Defaults to `false`. |
+
+```json
+{
+  "name": "Nightly restart",
+  "minute": "0",
+  "hour": "4",
+  "day_of_month": "*",
+  "month": "*",
+  "day_of_week": "*",
+  "is_active": true,
+  "only_when_online": true
+}
+```
+
+### Response
+
+`200 OK`
+
+Returns the new `server_schedule` object, in the same format as one item of [List schedules](#list-schedules).
+`relationships.tasks.data` is an empty list.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The cron fields do not form a valid expression. Detail: `The cron data provided does not evaluate to a valid expression.` |
+
+Logs the activity event `server:schedule.create`.
+
+## View a schedule
+
+`GET /api/client/servers/{server}/schedules/{schedule}`
+
+**Subuser permission:** `schedule.read`
+
+Returns one schedule with its tasks.
+
+### Response
+
+`200 OK`
+
+Returns a `server_schedule` object, in the same format as one item of [List schedules](#list-schedules).
+
+## Update a schedule
+
+`POST /api/client/servers/{server}/schedules/{schedule}`
+
+**Subuser permission:** `schedule.update`
+
+Replaces the schedule's name, cron fields and flags. `next_run_at` is recalculated from the new cron fields.
+If `is_active` changes, `is_processing` is reset to `false`. This lets you clear a schedule stuck in the processing
+state by deactivating and reactivating it.
+
+### Request body
+
+JSON body. The fields and rules are the same as [Create a schedule](#create-a-schedule). All required fields must
+be sent. If `is_active` is omitted, the schedule keeps its current value. If `only_when_online` is omitted, it is
+set to `false`.
+
+### Response
+
+`200 OK`
+
+Returns the updated `server_schedule` object.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The cron fields do not form a valid expression. Detail: `The cron data provided does not evaluate to a valid expression.` |
+
+Logs the activity event `server:schedule.update`.
+
+## Run a schedule now
+
+`POST /api/client/servers/{server}/schedules/{schedule}/execute`
+
+**Subuser permission:** `schedule.update`
+
+Runs the schedule immediately, whether or not it is active. No request body.
+
+What happens:
+
+1. `is_processing` is set to `true`, `next_run_at` is recalculated, and the first task (lowest `sequence_id`) is
+   marked as queued.
+2. If `only_when_online` is `true` and the server is `offline` or `stopping` (or Wings cannot be reached), nothing
+   runs. The schedule is marked as finished and the response is still `202`.
+3. Otherwise the first task runs **during the request**, without waiting for its `time_offset`. The remaining tasks
+   are queued with their normal `time_offset` delays.
+
+### Response
+
+`202 Accepted` with an empty body.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The schedule has no tasks. Detail: `Cannot process schedule for task execution: no tasks are registered.` |
+| `400`, `429` or other | The first task failed while running during the request. For example, a backup task returns the [backup creation errors](/docs/api/client/backups#create-a-backup), and a Wings connection failure returns a `DaemonConnectionException`. |
+
+Logs the activity event `server:schedule.execute`.
+
+## Delete a schedule
+
+`DELETE /api/client/servers/{server}/schedules/{schedule}`
+
+**Subuser permission:** `schedule.delete`
+
+Deletes the schedule and all of its tasks.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `server:schedule.delete`.
+
+## Create a task
+
+`POST /api/client/servers/{server}/schedules/{schedule}/tasks`
+
+**Subuser permission:** `schedule.update`
+
+Adds a task to the schedule.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | Yes | One of `command`, `power`, `backup`. |
+| `payload` | string or null | Yes, unless `action` is `backup` | See [Task actions](#task-actions). Stored as an empty string when omitted or `null`. |
+| `time_offset` | number | Yes | Seconds to wait before this task runs. Between `0` and `900`. |
+| `sequence_id` | number | No | Position in the schedule. If sent, must be at least `1`. See below. |
+| `continue_on_failure` | boolean | No | Defaults to `false`. |
+
+**Sequence handling:**
+
+- If `sequence_id` is omitted, or is greater than or equal to the next free position (highest existing
+  `sequence_id` + 1), the task is added at the end with `sequence_id` = highest existing + 1.
+- If `sequence_id` is lower, every existing task with a `sequence_id` greater than or equal to it is moved up by
+  one, and the new task takes the requested position.
+
+```json
+{
+  "action": "command",
+  "payload": "say Restarting in 60 seconds",
+  "time_offset": 0,
+  "sequence_id": 1,
+  "continue_on_failure": false
+}
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "schedule_task",
+  "attributes": {
+    "id": 13,
+    "sequence_id": 1,
+    "action": "command",
+    "payload": "say Restarting in 60 seconds",
+    "time_offset": 0,
+    "is_queued": false,
+    "continue_on_failure": false,
+    "created_at": "2026-11-26T10:21:05+00:00",
+    "updated_at": "2026-11-26T10:21:05+00:00"
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The schedule already has the maximum number of tasks. Detail: `Schedules may not have more than 10 tasks associated with them. Creating this task would put this schedule over the limit.` (the number is the configured limit) |
+| `403` | `action` is `backup` and the server's backup limit is `0`. Detail: `A backup task cannot be created when the server's backup limit is set to 0.` |
+
+Logs the activity event `server:task.create`.
+
+## Update a task
+
+`POST /api/client/servers/{server}/schedules/{schedule}/tasks/{task}`
+
+**Subuser permission:** `schedule.update`
+
+Replaces the task's action, payload, offset and failure behaviour, and optionally moves it.
+
+### Request body
+
+JSON body. Same fields and rules as [Create a task](#create-a-task). `continue_on_failure` is set to `false` when
+omitted.
+
+**Sequence handling:**
+
+- If `sequence_id` is omitted, the task keeps its position.
+- Moving the task to a lower `sequence_id` moves every task between the new position and the old position up by one.
+- Moving the task to a higher `sequence_id` moves every task between the old position and the new position down by
+  one.
+- A `sequence_id` higher than the schedule's last task is reduced to the last task's `sequence_id`, so the task
+  moves to the end without leaving a gap.
+
+### Response
+
+`200 OK`
+
+Returns the updated `schedule_task` object, in the same format as [Create a task](#create-a-task).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `403` | `action` is `backup` and the server's backup limit is `0`. Detail: `A backup task cannot be created when the server's backup limit is set to 0.` |
+
+Logs the activity event `server:task.update`. Its `action` and `payload` properties hold the new values, and `old`
+holds the previous `action` and `payload`.
+
+## Delete a task
+
+`DELETE /api/client/servers/{server}/schedules/{schedule}/tasks/{task}`
+
+**Subuser permission:** `schedule.update`
+
+Deletes the task. Every task after it in the schedule moves down by one `sequence_id`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `403` | You lack `schedule.update`. This endpoint checks the permission itself, so the error is `HttpForbiddenException` with the detail `You do not have permission to perform this action.` rather than the usual `AuthorizationException`. |
+
+Logs the activity event `server:task.delete`.

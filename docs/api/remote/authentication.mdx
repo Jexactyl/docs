@@ -1,0 +1,74 @@
+---
+sidebar_position: 1
+title: Authentication
+---
+
+# Authentication
+
+The Remote API is how a node's Wings daemon talks to the Panel. Every request is authenticated with the daemon token
+of the node making the request, and the Panel then treats that node as the caller.
+
+:::info
+These endpoints are for Wings only. They are not meant for scripts or integrations, and Client or Application API
+keys do not work on them. Use the [Client API](/docs/category/client-api) or the
+[Application API](/docs/category/application-api) instead.
+:::
+
+All Remote API paths start with `/api/remote`. Requests are **not rate limited**.
+
+## Header format
+
+Send the node's token ID and token, joined by a single period, as a bearer token:
+
+```http
+Authorization: Bearer <daemon_token_id>.<daemon_token>
+Accept: application/json
+```
+
+For example:
+
+```bash
+curl https://panel.example.com/api/remote/servers?per_page=50 \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN_ID.$TOKEN"
+```
+
+The Panel splits the bearer value on `.`. It must produce exactly two non-empty parts. The first part is looked up
+against the nodes' `daemon_token_id`. The second part is compared, in constant time, with that node's decrypted
+`daemon_token`. If both match, the request runs as that node.
+
+## Where the token comes from
+
+Every node has a token pair, generated when the node is created:
+
+| Value | Length | Stored as |
+|-------|--------|-----------|
+| `daemon_token_id` | 16 characters | Plain text, unique per node. |
+| `daemon_token` | 64 characters | Encrypted with the Panel's `APP_KEY`. |
+
+Both values are written into the node's Wings configuration as `token_id` and `token`, next to `uuid` and `remote`
+(the Panel URL). Wings reads them from its `config.yml` and builds the header above. You can get the configuration:
+
+- from the node's configuration page in the admin area,
+- with `GET /api/application/nodes/{node}/configuration` (admin permission `nodes.read`; add `?format=yaml` for
+  YAML), or
+- with `php artisan p:node:configuration <node id or uuid>` on the Panel host.
+
+Anyone with these two values can act as the node. Keep the Wings configuration file private.
+
+## Errors
+
+These come from the authentication step, before any endpoint runs. They use the standard
+[error format](/docs/api/introduction#errors).
+
+| Status | `code` | `detail` | When |
+|--------|--------|----------|------|
+| `401` | `HttpException` | `Access to this endpoint must include an Authorization header.` | No bearer token was sent. The response also has a `WWW-Authenticate: Bearer` header. |
+| `400` | `BadRequestHttpException` | `The Authorization header provided was not in a valid format.` | The bearer value does not split into exactly two non-empty parts on `.`. |
+| `403` | `AccessDeniedHttpException` | `You are not authorized to access this resource.` | No node has that token ID, or the token does not match. The Panel returns the same error in both cases, so it does not reveal whether a token ID exists. |
+
+## Node scoping
+
+Once authenticated, endpoints that take a server or backup UUID check that the server (or the backup's server)
+belongs to the calling node, and return `404` if it does not. For transfer callbacks, the calling node must be the
+transfer's destination.

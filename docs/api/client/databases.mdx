@@ -1,0 +1,209 @@
+---
+sidebar_position: 12
+title: Databases
+---
+
+# Databases
+
+These endpoints manage the MySQL/MariaDB databases attached to a server. The Panel creates and drops the database and
+its user directly on the database host; Wings is not involved.
+
+All endpoints on this page are blocked while the server is suspended, installing, restoring a backup, being
+transferred, or its node is in maintenance. See [server state and availability](/docs/api/client/servers#server-state-and-availability).
+
+## Database IDs
+
+The `id` of a database is a **hashid**: a short string such as `bEY4yAD5` that encodes the database's numeric ID. It
+is generated with the Panel's `HASHIDS_SALT`, `HASHIDS_LENGTH` (default `8`) and `HASHIDS_ALPHABET` settings, so it is
+specific to each Panel.
+
+In `{database}` path parameters you can send either the hashid or the plain numeric ID. A value made only of digits is
+treated as a numeric ID; anything else is decoded as a hashid. If no database matches, the response is `404`. If the
+database exists but belongs to another server, the response is `404` with
+`The requested resource was not found for this server.`
+
+## The password include
+
+Database passwords are only returned as an include. `?include=password` adds `relationships.password` to each
+database:
+
+- If you have `database.view_password` (owners and root administrators always do), it contains the decrypted password.
+- Otherwise it is a `null_resource`: `{ "object": "null_resource", "attributes": null }`.
+
+The create and rotate-password endpoints always add this include, with the same permission check.
+
+```json
+"relationships": {
+  "password": {
+    "object": "database_password",
+    "attributes": {
+      "password": "x7Kd!pQ2mZ@r9TbW.vL3nY^s"
+    }
+  }
+}
+```
+
+Read the password from `relationships.password.attributes.password`.
+
+## List databases
+
+`GET /api/client/servers/{server}/databases`
+
+**Subuser permission:** `database.read`
+
+Returns all databases of the server. Not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997/databases?include=password" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `password`. See [the password include](#the-password-include). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server_database",
+      "attributes": {
+        "id": "bEY4yAD5",
+        "host": {
+          "address": "db1.example.com",
+          "port": 3306
+        },
+        "name": "s5_survival",
+        "username": "u5_x8Hk2LmQ9a",
+        "connections_from": "%",
+        "max_connections": 0
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | string | The database's hashid. |
+| `host.address` | string | The database host's address. |
+| `host.port` | integer | The database host's port. |
+| `name` | string | The database name, including the `s<server id>_` prefix. |
+| `username` | string | The database user, in the form `u<server id>_<10 random characters>`. |
+| `connections_from` | string | The hosts the user may connect from (`%` means any). |
+| `max_connections` | integer or null | Maximum connections for the user. `0` or `null` means no limit. |
+
+## Create a database
+
+`POST /api/client/servers/{server}/databases`
+
+**Subuser permission:** `database.create`
+
+Creates a database and a user with a random 24 character password on a database host, and grants the user access to
+the database. Logs the activity event `server:database.create` with the database name.
+
+The host is the database host linked to the server's node. If the node has none, a random database host is used,
+unless `PTERODACTYL_CLIENT_DATABASES_ALLOW_RANDOM` is `false`.
+
+The database is named `s<server id>_<database>`. If that is longer than 48 characters, the part from `database` is
+cut so that the full name is 48 characters.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `database` | string | Yes | 3 to 48 characters. Letters, numbers, dashes and underscores only (Laravel `alpha_dash`). |
+| `remote` | string | Yes | The hosts the user may connect from. Must match `^[\w\-\/.%:]+$`. Use `%` for any host. |
+
+```json
+{ "database": "survival", "remote": "%" }
+```
+
+### Response
+
+`200 OK`
+
+The new database in the same format as [List databases](#list-databases), with the `password` include always
+applied.
+
+```json
+{
+  "object": "server_database",
+  "attributes": {
+    "id": "bEY4yAD5",
+    "host": {
+      "address": "db1.example.com",
+      "port": 3306
+    },
+    "name": "s5_survival",
+    "username": "u5_x8Hk2LmQ9a",
+    "connections_from": "%",
+    "max_connections": null,
+    "relationships": {
+      "password": {
+        "object": null,
+        "attributes": {
+          "password": "x7Kd!pQ2mZ@r9TbW.vL3nY^s"
+        }
+      }
+    }
+  }
+}
+```
+
+`max_connections` is `null` in this response because the Panel does not set it on creation. Listing the database
+afterwards shows the stored value, which defaults to `0`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server has a database limit (`feature_limits.databases` is not `null`) and already has that many databases. `detail` is `Cannot create additional databases on this server: limit has been reached.` A `null` limit means no limit. |
+| `400` | The node has no database host and random hosts are disabled, or no database hosts exist. `detail` is `No database host was found that meets the requirements for this server.` |
+| `403` | Client database creation is disabled with `PTERODACTYL_CLIENT_DATABASES_ENABLED=false`. `detail` is `Client database creation is not enabled in this Panel.` |
+| `422` | Validation failed. If the server already has a database with the same full name (`s<server id>_<database>`), the `database` field fails with `The database name you have selected is already in use by this server.` |
+
+## Rotate a database password
+
+`POST /api/client/servers/{server}/databases/{database}/rotate-password`
+
+**Subuser permission:** `database.update`
+
+Generates a new random 24 character password for the database user. The Panel drops the user on the database host,
+creates it again with the new password, and grants it access to the database again. Logs the activity event
+`server:database.rotate-password` with the database name.
+
+`{database}` is the database's hashid or numeric ID. See [database IDs](#database-ids).
+
+### Response
+
+`200 OK`
+
+The database in the same format as [Create a database](#create-a-database), with the `password` include always
+applied. The new password is only shown if you have `database.view_password`; otherwise `relationships.password` is a
+`null_resource`.
+
+## Delete a database
+
+`DELETE /api/client/servers/{server}/databases/{database}`
+
+**Subuser permission:** `database.delete`
+
+Drops the database and its user on the database host, then deletes the Panel's record. Logs the activity event
+`server:database.delete` with the database name.
+
+`{database}` is the database's hashid or numeric ID. See [database IDs](#database-ids).
+
+### Response
+
+`204 No Content`

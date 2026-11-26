@@ -1,0 +1,174 @@
+---
+sidebar_position: 6
+title: Links
+---
+
+# Links
+
+Custom links are extra links shown in the client area of the Panel. These endpoints list, create, update and delete
+them.
+
+## List links
+
+`GET /api/application/links`
+
+**Admin permission:** `links.read`
+
+Returns a paginated list of custom links.
+
+```bash
+curl "https://panel.example.com/api/application/links?sort=name" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | integer | No | Exact match on the link ID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `filter[url]` | string | No | Partial match on the URL. |
+| `filter[visible]` | string | No | Partial match on the visible flag (`1` or `0`). |
+| `sort` | string | No | `id`, `visible` or `name`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "custom_links",
+      "attributes": {
+        "id": 3,
+        "name": "Status page",
+        "url": "https://status.example.com",
+        "visible": true,
+        "created_at": "2026-11-26T10:15:00+00:00",
+        "updated_at": "2026-11-26T10:15:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Link ID. |
+| `name` | string | Link text. |
+| `url` | string | Link target. |
+| `visible` | boolean | Whether the link is shown. |
+| `created_at` | string | ISO 8601 date. |
+| `updated_at` | string | ISO 8601 date. |
+
+Note that the resource name is `custom_links` (plural).
+
+## Create a link
+
+`POST /api/application/links`
+
+**Admin permission:** `links.create`
+
+Creates a custom link.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | At least 3 characters. No maximum is checked. |
+| `url` | string | Yes | Must be a valid URL. |
+| `visible` | boolean | Yes | Show the link. Accepts `true`, `false`, `1`, `0`, `"1"` and `"0"`. |
+
+Logs the activity event `admin:link:create` with the link as the subject and `name` and `url` properties.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "custom_links",
+  "attributes": {
+    "id": 3,
+    "name": "Status page",
+    "url": "https://status.example.com",
+    "visible": true,
+    "created_at": "2026-11-26T10:15:00+00:00",
+    "updated_at": "2026-11-26T10:15:00+00:00"
+  }
+}
+```
+
+## Update a link
+
+`PATCH /api/application/links/{id}`
+
+**Admin permission:** `links.update`
+
+Replaces a link's name, URL and visibility. Although the method is `PATCH`, all three fields are required.
+
+Logs the activity event `admin:link:update` with the link as the subject, and `name` and `url` properties in the
+form `<old> => <new>`.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The numeric link ID. A non-numeric value returns `404`. |
+
+### Request body
+
+JSON body. The same fields and rules as [Create a link](#create-a-link).
+
+### Response
+
+`200 OK`, with the updated link in the same format as [Create a link](#create-a-link).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No link has this ID. The body is validated first, so an invalid body returns `422` even for an unknown ID. |
+
+## Delete a link
+
+`DELETE /api/application/links/{id}`
+
+**Admin permission:** `links.delete`
+
+Deletes a custom link.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The numeric link ID. A non-numeric value returns `404`. |
+
+Logs the activity event `admin:link:delete` with `name` and `url` properties.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No link has this ID. |

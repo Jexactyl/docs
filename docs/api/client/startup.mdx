@@ -1,0 +1,141 @@
+---
+sidebar_position: 13
+title: Startup
+---
+
+# Startup
+
+These endpoints show a server's startup command and let you change the values of its egg variables.
+
+Both endpoints are blocked while the server is suspended, installing, restoring a backup, being transferred, or its
+node is in maintenance. See [server state and availability](/docs/api/client/servers#server-state-and-availability).
+
+## Get startup details
+
+`GET /api/client/servers/{server}/startup`
+
+**Subuser permission:** `startup.read`
+
+Returns the server's user-viewable egg variables, the startup command, and the Docker images the egg offers. Not
+paginated.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997/startup" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "egg_variable",
+      "attributes": {
+        "name": "Server Jar File",
+        "description": "The name of the server jarfile to run the server with.",
+        "env_variable": "SERVER_JARFILE",
+        "default_value": "server.jar",
+        "server_value": "server.jar",
+        "is_editable": true,
+        "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+      }
+    }
+  ],
+  "meta": {
+    "startup_command": "java -Xms128M -Xmx4096M -jar server.jar",
+    "docker_images": {
+      "Java 21": "ghcr.io/pterodactyl/yolks:java_21",
+      "Java 17": "ghcr.io/pterodactyl/yolks:java_17"
+    },
+    "raw_startup_command": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}"
+  }
+}
+```
+
+#### Variable attributes
+
+Only variables the egg marks as user-viewable are returned.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | string | Display name. |
+| `description` | string or null | Description. |
+| `env_variable` | string | The environment variable name. Use this as `key` when updating. |
+| `default_value` | string or null | The egg's default value. |
+| `server_value` | string or null | This server's value. `null` if the server has no stored value for the variable. |
+| `is_editable` | boolean | Whether you can change the value. |
+| `rules` | string | Laravel validation rules the value must pass, pipe-separated. |
+
+#### Meta
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `startup_command` | string | The startup command with placeholders replaced. `{{SERVER_MEMORY}}`, `{{SERVER_IP}}` and `{{SERVER_PORT}}` become the server's memory limit and primary allocation's IP and port. Each `{{VARIABLE}}` becomes the server's value, or the default value if the server has none. Variables that are not user-viewable become `[hidden]`. |
+| `docker_images` | object | The egg's Docker images, as a map of display name to image. These are the values accepted by [Change the Docker image](/docs/api/client/settings#change-the-docker-image). |
+| `raw_startup_command` | string or null | The server's own startup command, without replacements. `null` or empty if the server uses the egg's startup command; `startup_command` is then built from the egg's command. |
+
+## Update a variable
+
+`PUT /api/client/servers/{server}/startup/variable`
+
+**Subuser permission:** `startup.update`
+
+Sets the server's value for one egg variable. The value is stored in the Panel; Wings is not contacted. If the new
+value (with `null` treated as an empty string) differs from the previous `server_value`, logs the activity event
+`server:startup.edit` with the properties `variable`, `old` and `new`. A variable with no stored value yet always
+counts as changed.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | Yes | The variable's `env_variable`, e.g. `SERVER_JARFILE`. |
+| `value` | string or null | Yes | The new value. The field must be present, but may be `null` or an empty string. It is then validated against the variable's own `rules`. An empty string or `null` is stored as an empty string. |
+
+```json
+{ "key": "SERVER_JARFILE", "value": "paper.jar" }
+```
+
+### Response
+
+`200 OK`
+
+The updated variable, with the new startup command in `meta`. `meta` has no `docker_images` here.
+
+```json
+{
+  "object": "egg_variable",
+  "attributes": {
+    "name": "Server Jar File",
+    "description": "The name of the server jarfile to run the server with.",
+    "env_variable": "SERVER_JARFILE",
+    "default_value": "server.jar",
+    "server_value": "paper.jar",
+    "is_editable": true,
+    "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+  },
+  "meta": {
+    "startup_command": "java -Xms128M -Xmx4096M -jar paper.jar",
+    "raw_startup_command": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}"
+  }
+}
+```
+
+`server_value` in this response is the `value` you sent after input normalisation, so an empty string comes back as
+`null`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | No variable of the server's egg has this `key`, or the variable is not user-viewable. `detail` is `The environment variable you are trying to edit does not exist.` |
+| `400` | The variable is not user-editable. `detail` is `The environment variable you are trying to edit is read-only.` |
+| `422` | `value` fails the variable's `rules`. |
+

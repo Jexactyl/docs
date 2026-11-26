@@ -1,0 +1,216 @@
+---
+sidebar_position: 7
+title: Server Groups
+---
+
+# Server Groups
+
+Server groups let you organise your server list into named, coloured groups. A group belongs to your account, and
+each server can be in at most one group (the server's `group_id`).
+
+None of these endpoints need a subuser permission. Only servers you **own** can be added to or removed from a
+group. Servers you reach as a subuser cannot.
+
+The `{id}` path parameter must be numeric. Any other value does not match the route and returns `404`.
+
+## List groups
+
+`GET /api/client/groups`
+
+Returns every server group on your account. The list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/groups" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server_group",
+      "attributes": {
+        "id": 3,
+        "user_id": 4,
+        "name": "Minecraft",
+        "color": "#22C55E"
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | The group ID. Use it in the paths below. |
+| `user_id` | integer | Your user ID. |
+| `name` | string | |
+| `color` | string or null | A hex colour such as `#22C55E`, or `null`. |
+
+To see which servers are in a group, read `group_id` on the servers from [List servers](/docs/api/client/general#list-servers).
+
+## Create a group
+
+`POST /api/client/groups`
+
+Creates a new server group.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 3 to 191 characters. |
+| `color` | string | No | `#` followed by exactly 6 hexadecimal digits, for example `#22C55E`. May be `null`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "server_group",
+  "attributes": {
+    "id": 4,
+    "user_id": 4,
+    "name": "Testing",
+    "color": null
+  }
+}
+```
+
+No activity event is logged.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `422` | `name` is missing or not 3 to 191 characters, or `color` is not in `#RRGGBB` form. |
+
+## Update a group
+
+`PATCH /api/client/groups/{id}`
+
+Changes a group's name or colour.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The group ID. Must be an integer. |
+
+### Request body
+
+JSON body. Both fields are optional. A field that is missing or `null` keeps its current value.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | 3 to 191 characters. |
+| `color` | string | No | `#` followed by exactly 6 hexadecimal digits. Because `null` keeps the current value, a colour cannot be removed with this endpoint. |
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The group belongs to another user. `detail`: `You do not have permission to edit this server group.` |
+| `404` | No group has that ID. |
+| `422` | `name` is not 3 to 191 characters, or `color` is not in `#RRGGBB` form. |
+
+## Delete a group
+
+`DELETE /api/client/groups/{id}`
+
+Deletes a group. Every server in the group is taken out of it first (its `group_id` becomes `null`).
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The group ID. Must be an integer. |
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The group belongs to another user. `detail`: `You do not have permission to edit this server group.` |
+| `404` | No group has that ID. |
+
+## Add a server to a group
+
+`POST /api/client/groups/{id}/add`
+
+Puts one of your servers in the group. If the server is already in another group, it is moved.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The group ID. Must be an integer. |
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `server` | string | Yes | The server's full 36 character UUID. The short UUID and `serv_` identifier are not accepted. |
+
+A missing `server` field returns `422`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The group does not exist or is not yours. `detail`: `No group with that ID exists on your account.` |
+| `400` | No server you own has that UUID. `detail`: `No server with that UUID exists on your account.` |
+
+## Remove a server from a group
+
+`POST /api/client/groups/{id}/remove`
+
+Takes one of your servers out of the group. The server's `group_id` becomes `null`.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The group ID. Must be an integer. |
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `server` | string | Yes | The server's full 36 character UUID. |
+
+A missing `server` field returns `422`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | No server you own with that UUID is in that group. `detail`: `No server with that UUID exists in that group on your account.` |

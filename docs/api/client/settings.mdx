@@ -1,0 +1,94 @@
+---
+sidebar_position: 14
+title: Server Settings
+---
+
+# Server Settings
+
+These endpoints rename a server, reinstall it, and change its Docker image.
+
+All endpoints on this page are blocked while the server is suspended, installing, restoring a backup, being
+transferred, or its node is in maintenance. See [server state and availability](/docs/api/client/servers#server-state-and-availability).
+
+## Rename a server
+
+`POST /api/client/servers/{server}/settings/rename`
+
+**Subuser permission:** `settings.rename`
+
+Changes the server's name and, optionally, its description. Logs the activity event `server:settings.rename` (with
+`old` and `new`) if the name changed, and `server:settings.description` (with `old` and `new`) if the description
+changed.
+
+```bash
+curl -X POST "https://panel.example.com/api/client/servers/1a7ce997/settings/rename" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Survival", "description": "Main survival world"}'
+```
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1 to 191 characters. |
+| `description` | string or null | No | If omitted, the description is not changed. If `null` or an empty string, the description is set to an empty string. |
+
+### Response
+
+`204 No Content`
+
+## Reinstall a server
+
+`POST /api/client/servers/{server}/settings/reinstall`
+
+**Subuser permission:** `settings.reinstall`
+
+Sets the server's `status` to `installing` and asks Wings to run the egg's install script again
+(`POST /api/servers/<uuid>/reinstall` on the node). If the request to Wings fails, the status change is rolled back
+and the Wings error is returned. Logs the activity event `server:reinstall`.
+
+No request body.
+
+While the reinstall runs, the server is in the `installing` state and most endpoints return `409`. See
+[server state and availability](/docs/api/client/servers#server-state-and-availability).
+
+### Response
+
+`202 Accepted` with an empty body.
+
+## Change the Docker image
+
+`PUT /api/client/servers/{server}/settings/docker-image`
+
+**Subuser permission:** `startup.docker-image`
+
+Changes the Docker image the server runs on, choosing from the images its egg offers. The image is stored in the
+Panel; Wings is not contacted. Logs the activity event `server:startup.image` (with `old` and `new`) if the image
+changed.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `docker_image` | string | Yes | Must be one of the image values in the egg's Docker images. These are listed in `meta.docker_images` of [Get startup details](/docs/api/client/startup#get-startup-details) (use the value, not the display name). |
+
+```json
+{ "docker_image": "ghcr.io/pterodactyl/yolks:java_17" }
+```
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server's current image is not one of the egg's images, meaning an administrator set a custom image. `detail` is `This server's Docker image has been manually set by an administrator and cannot be updated.` This check runs after validation. |
+| `422` | `docker_image` is missing or not one of the egg's images. |

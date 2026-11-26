@@ -1,0 +1,335 @@
+---
+sidebar_position: 2
+title: Settings
+---
+
+# Settings
+
+These endpoints change Panel-wide settings: general settings, the Panel mode, authentication modules, the alert
+banner and theme colors. They also let you read and download the Panel's log files.
+
+:::info How settings are stored
+Settings are saved as strings in the `settings` table under keys of the form `settings::<key>`. When the Panel
+boots, each known key is copied into the config value with `:` replaced by `.` (for example `settings::app:name`
+overrides `app.name`). A JSON `true` is stored as `1`, and `false` or `null` is stored as an empty string. Stored
+values `true`, `false`, `1`, `0`, `null` and `empty` (case-insensitive, optionally in parentheses) are converted back
+to the matching type when loaded. A key that has never been saved falls back to the config file or `.env` value.
+:::
+
+## Update general settings
+
+`PATCH /api/application/settings`
+
+**Admin permission:** `settings.update`
+
+Updates one or more general settings. Only the fields you send are saved. A field sent as `null` is saved as an
+empty string.
+
+```bash
+curl -X PATCH "https://panel.example.com/api/application/settings" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"app:name": "My Hosting", "activity:enabled:server": true}'
+```
+
+### Request body
+
+JSON body. Field names contain colons and must be sent exactly as shown.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `app:name` | string or null | No | Panel name. 3 to 40 characters. Config key `app.name`. |
+| `app:logo` | string or null | No | Logo URL. Must be a valid URL, at most 255 characters. Config key `app.logo`. |
+| `app:auto_update` | boolean or null | No | Config key `app.auto_update`. |
+| `app:indicators` | boolean or null | No | Config key `app.indicators`. |
+| `app:speed_dial` | boolean or null | No | Config key `app.speed_dial`. |
+| `activity:enabled:account` | boolean or null | No | Whether account activity is logged. Config key `activity.enabled.account`. |
+| `activity:enabled:server` | boolean or null | No | Whether server activity is logged. Config key `activity.enabled.server`. |
+| `activity:enabled:admin` | boolean or null | No | Whether admin activity is logged. Config key `activity.enabled.admin`. |
+
+Boolean fields accept `true`, `false`, `1`, `0`, `"1"` and `"0"`. Any other field in the body is ignored.
+
+Logs the activity event `admin:settings:update` with the saved values in the `settings` property.
+
+### Response
+
+`204 No Content`
+
+## Update Panel mode
+
+`PATCH /api/application/settings/mode`
+
+**Admin permission:** `settings.update`
+
+Sets the Panel mode, stored in `settings::app:mode` (config key `app.mode`).
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | string | Yes | `standard` or `personal`. |
+
+Logs the activity event `admin:settings:mode`.
+
+### Response
+
+`204 No Content`
+
+## List log files
+
+`GET /api/application/settings/debug`
+
+**Admin permission:** `settings.read`
+
+Lists the `.log` files in the Panel's `storage/logs` directory, newest first, with a count of error and warning
+lines in each.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "log_file",
+      "attributes": {
+        "name": "laravel-2026-11-26.log",
+        "size": 48213,
+        "modified_at": "2026-11-26T09:41:07+00:00",
+        "errors": 3,
+        "warnings": 0
+      }
+    }
+  ]
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | string | File name. |
+| `size` | integer | Size in bytes. |
+| `modified_at` | string | ISO 8601 date of the last modification. |
+| `errors` | integer | Number of lines containing `.ERROR:`. |
+| `warnings` | integer | Number of lines containing `.WARNING:`. |
+
+The list is not paginated. If the logs directory does not exist, `data` is an empty array.
+
+## Download all log files
+
+`GET /api/application/settings/debug/archive`
+
+**Admin permission:** `settings.read`
+
+Returns a zip archive of every `.log` file in `storage/logs`. The response is a file download
+(`Content-Disposition: attachment`) named `panel-logs-<Y-m-d_His>.zip`, for example
+`panel-logs-2026-11-26_094107.zip`. The temporary zip is deleted after it is sent.
+
+Logs the activity event `admin:settings:debug.archive`.
+
+### Response
+
+`200 OK` with the zip file as the body.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | There are no `.log` files. `detail` is `There are no log files to archive.` |
+
+## Download a log file
+
+`GET /api/application/settings/debug/{file}`
+
+**Admin permission:** `settings.read`
+
+Downloads one log file from `storage/logs`. Only the base name of `{file}` is used, so it cannot point outside the
+logs directory.
+
+### Path parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `file` | The log file name, as returned by the list endpoint. Must end in `.log`. |
+
+Logs the activity event `admin:settings:debug.download` with the file name in the `file` property.
+
+### Response
+
+`200 OK` with the file as an attachment.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | The name does not end in `.log`, or the file does not exist. `detail` is `The requested log file could not be found.` |
+
+## Enable an authentication module
+
+`POST /api/application/auth/modules/enable`
+
+**Admin permission:** `auth.create`
+
+Sets `settings::modules:auth:<module>:enabled` to `true`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `module` | string | Yes | One of `registration`, `discord`, `google`, `onboarding` or `jguard` (the modules that have an `enabled` key). |
+
+```json
+{ "module": "discord" }
+```
+
+For backwards compatibility, a body that is a bare JSON string (for example `"discord"`) is also accepted and
+treated as the `module` value.
+
+Logs the activity event `admin:auth:module:enable` with the module name in the `module` property.
+
+### Response
+
+`204 No Content`
+
+## Disable an authentication module
+
+`POST /api/application/auth/modules/disable`
+
+**Admin permission:** `auth.delete`
+
+Sets `settings::modules:auth:<module>:enabled` to `false` (stored as an empty string). The body has the same form
+as [Enable an authentication module](#enable-an-authentication-module).
+
+Logs the activity event `admin:auth:module:disable`.
+
+### Response
+
+`204 No Content`
+
+## Update an authentication module
+
+`PUT /api/application/auth/modules`
+
+**Admin permission:** `auth.update`
+
+Sets one authentication module setting. The value is saved to `settings::modules:auth:<module>:<key>`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `module` | string | Yes | Module name. One of the modules in the table below. |
+| `key` | string | Yes | Setting key. Must be one of the keys listed for that module. |
+| `value` | depends on `key` | Depends on `key` | New value. See the table below. |
+
+The value is loaded into the config key `modules.auth.<module>.<key>`.
+
+| `module` | `key` | `value` rules | Used for |
+|----------|-------|---------------|----------|
+| `registration` | `enabled` | Required boolean | Allow new users to register. |
+| `security` | `force2fa` | Required boolean | Require two-factor authentication for all accounts. |
+| `security` | `attempts` | Required integer, at least 0 | Maximum login attempts. |
+| `discord` | `enabled` | Required boolean | Discord login. |
+| `discord` | `client_id`, `client_secret` | String or null | Discord OAuth credentials. |
+| `google` | `enabled` | Required boolean | Google login. |
+| `google` | `client_id`, `client_secret` | String or null | Google OAuth credentials. |
+| `onboarding` | `enabled` | Required boolean | Onboarding content shown to new users. |
+| `onboarding` | `content` | String or null | The onboarding content. |
+| `jguard` | `enabled` | Required boolean | jGuard login protection. |
+| `jguard` | `delay` | Required integer, at least 0 | jGuard delay. |
+| `jguard` | `sensitivity` | Required, one of `low`, `medium`, `high` | jGuard sensitivity. |
+
+Boolean values accept `true`, `false`, `1`, `0`, `"1"` and `"0"`.
+
+Logs the activity event `admin:auth:module:update` with `module`, `key` and `value` properties. For
+`client_secret`, the logged value is `[redacted]`.
+
+### Response
+
+`204 No Content`
+
+## Update the alert banner
+
+`PATCH /api/application/alerts`
+
+**Admin permission:** `alerts.update`
+
+Updates the alert banner shown in the Panel. Every call generates a new random UUID, saves it to
+`settings::modules:alert:uuid` (config key `modules.alert.uuid`), and returns it. Only the fields you send are
+saved, each to `settings::modules:alert:<field>` (config key `modules.alert.<field>`).
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean or null | No | Show the banner. Default from `.env`: `ALERT_ENABLED` (`false`). |
+| `type` | string or null | No | `success`, `info`, `warning` or `danger`. Default: `ALERT_TYPE` (`info`). |
+| `position` | string or null | No | `top-center`, `bottom-right`, `bottom-left` or `center`. Default: `ALERT_POSITION` (`top-center`). |
+| `content` | string or null | No | Banner text. 3 to 300 characters. Default: `ALERT_CONTENT`. |
+
+Logs the activity event `admin:alert:update` with the full request body in the `settings` property.
+
+### Response
+
+`200 OK`. The body is the new UUID as a JSON string:
+
+```json
+"0f8fad5b-d9cb-469f-a165-70867728950e"
+```
+
+## Update a theme color
+
+`PUT /api/application/theme/colors`
+
+**Admin permission:** `theme.update`
+
+Sets one theme color. The value is saved in the `theme` table under the key `theme::colors:<key>`, and loaded into the config value `colors.<key>`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | Yes | One of `primary`, `secondary`, `background`, `headers`, `sidebar`. |
+| `value` | string | Yes | A hex color: `#` followed by 3, 4, 6 or 8 hex digits, for example `#16a34a`. |
+
+The defaults come from `.env`:
+
+| `key` | `.env` variable | Default |
+|-------|-----------------|---------|
+| `primary` | `THEME_COLORS_PRIMARY` | `#16a34a` |
+| `secondary` | `THEME_COLORS_SECONDARY` | `#27272a` |
+| `background` | `THEME_COLORS_BACKGROUND` | `#141414` |
+| `headers` | `THEME_COLORS_HEADERS` | `#171717` |
+| `sidebar` | `THEME_COLORS_SIDEBAR` | `#18181b` |
+
+Logs the activity event `admin:theme:update` with `key` and `value` properties.
+
+### Response
+
+`204 No Content`
+
+## Reset the theme
+
+`POST /api/application/theme/reset`
+
+**Admin permission:** `theme.update`
+
+Deletes every stored theme value, so all colors return to their `.env` defaults. It takes no body.
+
+Logs the activity event `admin:theme:reset`.
+
+### Response
+
+`204 No Content`

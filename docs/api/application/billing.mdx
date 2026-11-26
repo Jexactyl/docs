@@ -1,0 +1,393 @@
+---
+sidebar_position: 17
+title: Billing
+---
+
+# Billing
+
+These endpoints read billing data, change billing module settings, manage billing exceptions, and import or export
+the billing catalogue (categories and products).
+
+:::info
+The billing endpoints of the Application API are **not** gated by the billing module's enabled setting. They work
+whether billing is enabled or not.
+:::
+
+## Get billing analytics
+
+`GET /api/application/billing/analytics`
+
+**Admin permission:** `billing.read`
+
+Returns every order, category and product in the database. The records are serialized directly from the database
+models, so this response does **not** use the usual `object`/`attributes` envelope, is not paginated, and contains
+every database column of each record.
+
+```bash
+curl "https://panel.example.com/api/application/billing/analytics" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "orders": [
+    {
+      "id": 1,
+      "name": "Minecraft Starter",
+      "user_id": 2,
+      "description": "New server order",
+      "total": 4.99,
+      "status": "processed",
+      "product_id": 1,
+      "created_at": "2026-11-20T10:15:00.000000Z",
+      "updated_at": "2026-11-20T10:16:02.000000Z",
+      "threat_index": -1,
+      "type": "new",
+      "transaction_id": "pi_3Q...",
+      "server_id": 14,
+      "metadata": null
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11",
+      "name": "Minecraft",
+      "icon": "https://example.com/minecraft.png",
+      "description": "Minecraft servers",
+      "visible": "1",
+      "created_at": "2026-11-01T09:00:00.000000Z",
+      "updated_at": "2026-11-01T09:00:00.000000Z",
+      "nest_id": 1,
+      "egg_id": 3
+    }
+  ],
+  "products": [
+    {
+      "id": 1,
+      "uuid": "0d4f6c4e-7a0d-4f3c-8a51-2d6f0a5b9e21",
+      "name": "Starter",
+      "icon": null,
+      "price": 4.99,
+      "description": "2 GB RAM",
+      "visible": null,
+      "cpu_limit": 100,
+      "memory_limit": 2048,
+      "disk_limit": 10240,
+      "backup_limit": 1,
+      "database_limit": 1,
+      "allocation_limit": 1,
+      "created_at": "2026-11-01T09:05:00.000000Z",
+      "updated_at": "2026-11-01T09:05:00.000000Z",
+      "stripe_id": null,
+      "category_uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11"
+    }
+  ]
+}
+```
+
+Notes on the raw fields:
+
+- Timestamps use Laravel's default serialization (`2026-11-20T10:15:00.000000Z`, UTC).
+- A category's `visible` is stored in a string column, so it is returned as the raw stored value, not a boolean.
+- `orders[].total` is a float, `orders[].metadata` is an array or `null`, and the product limit columns are integers.
+- The exact set of keys is whatever columns exist in the `orders`, `categories` and `products` tables.
+
+## Update a billing setting
+
+`PUT /api/application/billing/settings`
+
+**Admin permission:** `billing.update`
+
+Sets one billing setting. The value is stored under the settings key `settings::modules:billing:` followed by `key`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | Yes | The setting name, without the `modules:billing:` prefix. Must be one of the keys in the table below. |
+| `value` | string, number, boolean or `null` | Yes (may be `null`) | The new value. Arrays and objects are rejected. It is stored as a string: `true` is stored as `"1"`, `false` and `null` as an empty string. |
+
+The allowed values of `key`:
+
+| `key` | Meaning |
+|-------|---------|
+| `enabled` | Whether the billing module is enabled. |
+| `keys:secret` | The Stripe secret key. |
+| `currency:code` | Currency code. |
+| `currency:symbol` | Currency symbol. |
+| `links:terms` | Link to the terms of service. |
+| `links:privacy` | Link to the privacy policy. |
+| `renewal:days` | Renewal period, in days. |
+| `renewal:threshold` | Renewal threshold. |
+| `allow_upgrades` | Whether customers can upgrade servers. |
+
+Stored values `true`, `false`, `1`, `0`, `null` and `empty` (and their parenthesised forms such as `(true)`) are
+converted to the matching type when the Panel loads its settings.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:update` with the full request body as the `settings` property, unless `key`
+starts with `keys:`. Changes to `keys:` settings are not logged.
+
+## Delete the Stripe keys
+
+`DELETE /api/application/billing/keys`
+
+**Admin permission:** `billing.delete-keys`
+
+Removes the stored Stripe secret key (`settings::modules:billing:keys:secret`). No other setting is changed.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:reset-keys`.
+
+## List billing exceptions
+
+`GET /api/application/billing/exceptions`
+
+**Admin permission:** `billing.exceptions`
+
+Returns a paginated list of billing exceptions. A billing exception records a problem the billing system hit, for
+example a failed deployment after payment.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Results per page, `1` to `100`. Default `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]`, `filter[title]` | string | No | Partial match on the field. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `sort` | string | No | One of `id`, `title`, `exception_type`, `created_at`, optionally prefixed with `-`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "billing_exceptions",
+      "attributes": {
+        "id": 3,
+        "uuid": "9a3e2f1d-5b7c-4c8e-a1f2-3d4e5f6a7b8c",
+        "title": "Server deployment failed",
+        "description": "No node has enough free resources for this product.",
+        "exception_type": "deployment",
+        "order_id": 12,
+        "created_at": "2026-11-25T18:04:11+00:00",
+        "updated_at": "2026-11-25T18:04:11+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Exception ID. |
+| `uuid` | string | Exception UUID. Used to resolve a single exception. |
+| `title` | string | Short title. |
+| `description` | string | Details of the problem. |
+| `exception_type` | string | One of `deployment`, `payment`, `storefront`, `invoice`. |
+| `order_id` | integer or `null` | The related order, if any. |
+| `created_at`, `updated_at` | string | ISO 8601 timestamps. |
+
+## Resolve all billing exceptions
+
+`DELETE /api/application/billing/exceptions`
+
+**Admin permission:** `billing.exceptions`
+
+Deletes every billing exception. Succeeds even when there are none.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:exception-resolve-all`.
+
+## Resolve a billing exception
+
+`DELETE /api/application/billing/exceptions/{uuid}`
+
+**Admin permission:** `billing.exceptions`
+
+Deletes one billing exception. `{uuid}` is the exception's `uuid`, not its numeric `id`.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:exception-resolve`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `404` | No billing exception has this UUID. |
+
+## Export the billing configuration
+
+`POST /api/application/billing/config/export`
+
+**Admin permission:** `billing.export`
+
+Downloads every category and product as a JSON file. The request takes no body.
+
+### Response
+
+`200 OK`, with these headers:
+
+```http
+Content-Type: application/json
+Content-Disposition: attachment; filename="data.json"
+```
+
+The body is pretty-printed JSON with three top-level keys:
+
+```json
+{
+    "export_info": {
+        "warning": "This file was automatically generated by Jexpanelv4. Do NOT edit this file unless you know what you are doing.",
+        "requested_by": "c2a8e0f4-1b3d-4e5f-9a6b-7c8d9e0f1a2b",
+        "requested_at": "2026-11-26 14:03:22"
+    },
+    "categories": [
+        {
+            "id": 1,
+            "uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11",
+            "name": "Minecraft",
+            "icon": null,
+            "description": "Minecraft servers",
+            "visible": "1",
+            "created_at": "2026-11-01T09:00:00.000000Z",
+            "updated_at": "2026-11-01T09:00:00.000000Z",
+            "nest_id": 1,
+            "egg_id": 3
+        }
+    ],
+    "products": [
+        {
+            "id": 1,
+            "uuid": "0d4f6c4e-7a0d-4f3c-8a51-2d6f0a5b9e21",
+            "name": "Starter",
+            "icon": null,
+            "price": 4.99,
+            "description": "2 GB RAM",
+            "visible": null,
+            "cpu_limit": 100,
+            "memory_limit": 2048,
+            "disk_limit": 10240,
+            "backup_limit": 1,
+            "database_limit": 1,
+            "allocation_limit": 1,
+            "created_at": "2026-11-01T09:05:00.000000Z",
+            "updated_at": "2026-11-01T09:05:00.000000Z",
+            "stripe_id": null,
+            "category_uuid": "6f1c1b7e-3f51-4a0e-9a62-0f0b4d7f2c11"
+        }
+    ]
+}
+```
+
+| Key | Description |
+|-----|-------------|
+| `export_info.warning` | Fixed text, exactly as shown. |
+| `export_info.requested_by` | UUID of the account that made the request. |
+| `export_info.requested_at` | Server time of the export, formatted `YYYY-MM-DD HH:MM:SS`. |
+| `categories` | Every category, with every database column (same shape as in [billing analytics](#get-billing-analytics)). |
+| `products` | Every product, with every database column. Each product's `category_uuid` is the `uuid` of its category. |
+
+Logs the activity event `admin:billing:config:export`.
+
+## Import a billing configuration
+
+`POST /api/application/billing/config/import`
+
+**Admin permission:** `billing.import`
+
+Creates categories and products from an export file. The file is sent as parsed JSON inside the request body, not as
+a file upload. Imported categories and products always get new UUIDs and IDs. Products are linked to the new
+category that replaced the category whose `uuid` matches their `category_uuid` in the file.
+
+The whole import runs in one database transaction. If any part fails, nothing is changed, including the deletion
+done by `override`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `data` | object | Yes | The contents of an export file. Only `data.categories` and `data.products` are read; `export_info` is ignored. |
+| `override` | boolean | No | If true, **all** existing categories and products are deleted before the import. Default `false`. |
+| `ignore_duplicates` | boolean | No | If true, a category whose `name` already exists is not created again; products from the file that belong to it are added to the existing category instead. A product is skipped if a product with the same `name` already exists in the category it would be added to. Ignored when `override` is true. Default `false`. |
+
+`data.categories` and `data.products` must both be present. Either can be an empty array. Each entry must be an
+object with these keys:
+
+**`data.categories[]`**
+
+| Key | Type | Required | Rules |
+|-----|------|----------|-------|
+| `uuid` | string | Yes | Only used to match products to this category. Not reused. |
+| `name` | string | Yes | 3 to 191 characters. |
+| `icon` | string | No | At most 300 characters. Defaults to `null`. |
+| `description` | string | No | At most 300 characters. Defaults to `null`. |
+| `visible` | any | No | Converted to a boolean. Defaults to `false`. Not validated. |
+| `egg_id` | integer | No | Must be an existing egg. When set, the category's nest is taken from the egg and `nest_id` is ignored. |
+| `nest_id` | integer | If `egg_id` is not set | Must be an existing nest. |
+
+**`data.products[]`**
+
+| Key | Type | Required | Rules |
+|-----|------|----------|-------|
+| `category_uuid` | string | Yes | The `uuid` of a category in the same file. Products whose `category_uuid` matches no category in the file are skipped without an error. |
+| `name` | string | Yes | 3 to 191 characters. |
+| `price` | number | Yes | `0` or more. Decimal prices are kept. |
+| `icon` | string | No | 3 to 300 characters. Defaults to `null`. |
+| `description` | string | No | At most 300 characters. Defaults to `null`. |
+| `cpu_limit` | integer | Yes | `0` or more. |
+| `memory_limit` | integer | Yes | |
+| `disk_limit` | integer | Yes | |
+| `backup_limit` | integer | Yes | `0` or more. |
+| `database_limit` | integer | Yes | `0` or more. |
+| `allocation_limit` | integer | Yes | `0` or more. |
+
+All other keys in an entry (`id`, `visible` on products, `created_at`, `stripe_id` and so on) are ignored.
+
+### Response
+
+`204 No Content`
+
+Logs the activity event `admin:billing:config:import` with the properties `override` and `ignore_duplicates`.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `422` | A field fails the rules above. `meta.source_field` uses the dotted path, for example `data.products.0.price`. |

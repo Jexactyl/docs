@@ -1,0 +1,190 @@
+---
+sidebar_position: 16
+title: Network
+---
+
+# Network
+
+These endpoints manage the allocations (IP address and port pairs) assigned to a server: listing them, adding
+notes, choosing the primary allocation, and adding or removing extra allocations.
+
+`{allocation}` is the allocation's numeric `id`. An allocation that is not assigned to `{server}` returns `404`
+with the detail `The requested resource was not found for this server.`
+
+## The allocation object
+
+The `object` name is `allocation`.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Allocation ID. Use it as `{allocation}`. |
+| `ip` | string | IP address the allocation binds to. |
+| `ip_alias` | string or null | Display alias for the IP address, if the administrator set one. |
+| `port` | integer | Port number. |
+| `notes` | string or null | Notes set by a user. |
+| `is_default` | boolean | `true` if this is the server's primary allocation. |
+
+## List allocations
+
+`GET /api/client/servers/{server}/network/allocations`
+
+**Subuser permission:** `allocation.read`
+
+Returns every allocation assigned to the server. This list is not paginated.
+
+```bash
+curl "https://panel.example.com/api/client/servers/1a7ce997/network/allocations" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "allocation",
+      "attributes": {
+        "id": 21,
+        "ip": "203.0.113.10",
+        "ip_alias": "play.example.com",
+        "port": 25565,
+        "notes": null,
+        "is_default": true
+      }
+    },
+    {
+      "object": "allocation",
+      "attributes": {
+        "id": 22,
+        "ip": "203.0.113.10",
+        "ip_alias": "play.example.com",
+        "port": 25566,
+        "notes": "Dynmap",
+        "is_default": false
+      }
+    }
+  ]
+}
+```
+
+## Assign a new allocation
+
+`POST /api/client/servers/{server}/network/allocations`
+
+**Subuser permission:** `allocation.create`
+
+Assigns one more allocation to the server. No request body. The Panel picks the allocation itself:
+
+1. It checks the server's allocation limit. The limit counts every allocation on the server, including the
+   primary one. If the server has no allocation limit set (`null`) or a limit of `0`, no allocations can be added.
+2. It checks that client auto-allocation is enabled (`PTERODACTYL_CLIENT_ALLOCATIONS_ENABLED`, default `true`).
+3. It picks a random unassigned allocation on the server's node with the **same IP address** as the server's
+   primary allocation.
+4. If there is none, it creates a new allocation on that IP address, using a random free port between
+   `PTERODACTYL_CLIENT_ALLOCATIONS_RANGE_START` and `PTERODACTYL_CLIENT_ALLOCATIONS_RANGE_END`. Both are unset by
+   default, in which case no allocation is created.
+
+These variables are set in the Panel's `.env` file.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "allocation",
+  "attributes": {
+    "id": 57,
+    "ip": "203.0.113.10",
+    "ip_alias": "play.example.com",
+    "port": 25571,
+    "notes": null,
+    "is_default": false
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server already has as many allocations as its limit allows, or has no limit set. Detail: `Cannot assign additional allocations to this server: limit has been reached.` |
+| `400` | Client auto-allocation is disabled. Detail: `Server auto-allocation is not enabled for this instance.` |
+| `400` | No unassigned allocation exists on the primary IP, and the port range is not configured or has no free port. Detail: `Cannot assign additional allocation: no more space available on node.` |
+| `400` | The port picked from the configured range is `1024` or lower, or above `65535` (a misconfigured range). Detail: `Ports in an allocation must be greater than 1024 and less than or equal to 65535.` |
+
+Logs the activity event `server:allocation.create`.
+
+## Set allocation notes
+
+`POST /api/client/servers/{server}/network/allocations/{allocation}`
+
+**Subuser permission:** `allocation.update`
+
+Sets or clears the notes on an allocation.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `notes` | string or null | Yes (must be present) | Up to 256 characters. Send `null` to clear the notes. |
+
+```json
+{
+  "notes": "Dynmap"
+}
+```
+
+### Response
+
+`200 OK`
+
+Returns the updated `allocation` object, in the same format as [Assign a new allocation](#assign-a-new-allocation).
+
+Logs the activity event `server:allocation.notes`, only if the notes changed.
+
+## Set the primary allocation
+
+`POST /api/client/servers/{server}/network/allocations/{allocation}/primary`
+
+**Subuser permission:** `allocation.update`
+
+Makes the allocation the server's primary (default) allocation. No request body. The Panel updates the server
+record only; it does not contact Wings.
+
+### Response
+
+`200 OK`
+
+Returns the `allocation` object with `is_default` set to `true`.
+
+Logs the activity event `server:allocation.primary`.
+
+## Remove an allocation
+
+`DELETE /api/client/servers/{server}/network/allocations/{allocation}`
+
+**Subuser permission:** `allocation.delete`
+
+Unassigns the allocation from the server and clears its notes. The allocation is not deleted from the node. It
+becomes free for other servers to use.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | The server has no allocation limit set (`null` or `0`). Detail: `You cannot delete allocations for this server: no allocation limit is set.` |
+| `400` | The allocation is the server's primary allocation. Detail: `You cannot delete the primary allocation for this server.` |
+
+Logs the activity event `server:allocation.delete`.

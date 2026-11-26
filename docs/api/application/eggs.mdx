@@ -1,0 +1,461 @@
+---
+sidebar_position: 16
+title: Eggs
+---
+
+# Eggs
+
+An egg defines how a type of server is installed and run: its Docker images, startup command, install script and
+variables. These endpoints manage eggs and their variables. To list the eggs in a nest, or import an egg, see
+[Nests](/docs/api/application/nests).
+
+In every path, `{egg}` is the egg's numeric `id` and `{eggVariable}` is the variable's numeric `id`.
+
+## The egg object
+
+```json
+{
+  "object": "egg",
+  "attributes": {
+    "id": 3,
+    "uuid": "9e0a7b5c-3d2f-4a18-8b6c-1d2e3f4a5b6c",
+    "name": "Paper",
+    "nest_id": 1,
+    "author": "parker@pterodactyl.io",
+    "description": "High performance Spigot fork that aims to fix gameplay and mechanics inconsistencies.",
+    "docker_images": {
+      "Java 21": "ghcr.io/pterodactyl/yolks:java_21",
+      "Java 17": "ghcr.io/pterodactyl/yolks:java_17"
+    },
+    "config": {
+      "files": {
+        "server.properties": {
+          "parser": "properties",
+          "find": {
+            "server-ip": "0.0.0.0",
+            "server-port": "{{server.build.default.port}}"
+          }
+        }
+      },
+      "startup": {
+        "done": ")! For help, type "
+      },
+      "stop": "stop",
+      "file_denylist": [],
+      "extends": null
+    },
+    "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}",
+    "script": {
+      "privileged": true,
+      "install": "#!/bin/ash\n...",
+      "entry": "ash",
+      "container": "ghcr.io/pterodactyl/installers:alpine",
+      "extends": null
+    },
+    "created_at": "2026-11-20T14:02:11+00:00",
+    "updated_at": "2026-11-20T14:02:11+00:00"
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Egg ID. |
+| `uuid` | string | Egg UUID. |
+| `name` | string | Name. |
+| `nest_id` | integer | The nest the egg belongs to. |
+| `author` | string | Author email address. |
+| `description` | string or null | Description. |
+| `docker_images` | object or array | Docker images, as stored. Usually an object mapping a display name to an image. |
+| `config.files` | object | The egg's configuration file rules, decoded from JSON. `{}` when empty or `null`. |
+| `config.startup` | object or null | Startup detection rules, decoded from JSON. |
+| `config.stop` | string or null | Stop command. |
+| `config.file_denylist` | array or null | Files users cannot access. |
+| `config.extends` | integer or null | ID of the egg this egg copies its configuration from (`config_from`). |
+| `startup` | string | Startup command. |
+| `script.privileged` | boolean | Whether the install script runs privileged. |
+| `script.install` | string or null | Install script. |
+| `script.entry` | string or null | Install script entrypoint. |
+| `script.container` | string or null | Install script container image. |
+| `script.extends` | integer or null | ID of the egg this egg copies its install script from (`copy_script_from`). |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+
+`features`, `update_url` and `force_outgoing_ip` are not returned.
+
+### Includes
+
+See [includes](/docs/api/introduction#including-related-resources).
+
+| Include | Returns |
+|---------|---------|
+| `nest` | The egg's [nest](/docs/api/application/nests#the-nest-object). |
+| `servers` | Servers using the egg, as `server` objects. |
+| `variables` | The egg's variables, as [egg variable objects](#the-egg-variable-object). |
+| `config` | Only when the egg copies its configuration from another egg (`config.extends` is set); otherwise a `null_resource`. The resolved configuration: `files` and `startup` (decoded JSON) and `stop`, each taken from the parent egg when this egg's own value is `null`. |
+| `script` | Only when the egg copies its install script from another egg (`script.extends` is set); otherwise a `null_resource`. The resolved script: `privileged` (this egg's own value), and `install`, `entry` and `container`, each taken from the parent egg when this egg's own value is `null`. |
+
+The `config` and `script` includes have an empty string as their `object`:
+
+```json
+"relationships": {
+  "config": {
+    "object": "",
+    "attributes": {
+      "files": {},
+      "startup": { "done": "Server started" },
+      "stop": "stop"
+    }
+  }
+}
+```
+
+## The egg variable object
+
+The variable endpoints return each variable with its database columns as they are.
+
+```json
+{
+  "object": "egg_variable",
+  "attributes": {
+    "id": 12,
+    "egg_id": 3,
+    "name": "Server Jar File",
+    "description": "The name of the server jarfile to run the server with.",
+    "env_variable": "SERVER_JARFILE",
+    "default_value": "server.jar",
+    "user_viewable": true,
+    "user_editable": true,
+    "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/",
+    "created_at": "2026-11-20T14:02:11.000000Z",
+    "updated_at": "2026-11-20T14:02:11.000000Z"
+  }
+}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Variable ID. |
+| `egg_id` | integer | The egg the variable belongs to. |
+| `name` | string | Display name. |
+| `description` | string | Description. |
+| `env_variable` | string | Environment variable name. |
+| `default_value` | string | Default value. |
+| `user_viewable` | boolean | Whether users can see the variable. |
+| `user_editable` | boolean | Whether users can change the variable. |
+| `rules` | string | Laravel validation rules applied to the value. |
+| `created_at` | string | ISO 8601 timestamp in UTC, with microseconds (a different format from the egg's timestamps). |
+| `updated_at` | string | Same format as `created_at`. |
+
+## Get an egg
+
+`GET /api/application/eggs/{egg}`
+
+**Admin permission:** `eggs.read`
+
+Returns one egg.
+
+```bash
+curl "https://panel.example.com/api/application/eggs/3?include=variables" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | `config`, `nest`, `script`, `servers`, `variables`. |
+
+### Response
+
+`200 OK`
+
+An [egg object](#the-egg-object).
+
+## Export an egg
+
+`GET /api/application/eggs/{egg}/export`
+
+**Admin permission:** `eggs.export`
+
+Returns the egg as a `PTDL_v2` export file, the format that [import an egg](/docs/api/application/nests#import-an-egg)
+accepts. Logs the activity event `admin:eggs:export`.
+
+### Response
+
+`200 OK`
+
+The body is the export file itself, as pretty-printed JSON with the `Content-Type` `application/json`. It does not use
+the `object`/`attributes` envelope:
+
+```json
+{
+  "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-11-26T10:15:00.000000Z",
+  "name": "Paper",
+  "author": "parker@pterodactyl.io",
+  "description": "High performance Spigot fork that aims to fix gameplay and mechanics inconsistencies.",
+  "features": ["eula", "java_version", "pid_limit"],
+  "docker_images": {
+    "Java 21": "ghcr.io/pterodactyl/yolks:java_21"
+  },
+  "file_denylist": [],
+  "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}",
+  "config": {
+    "files": "{\"server.properties\":{\"parser\":\"properties\",\"find\":{\"server-ip\":\"0.0.0.0\"}}}",
+    "startup": "{\"done\":\")! For help, type \"}",
+    "stop": "stop"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/ash\n...",
+      "container": "ghcr.io/pterodactyl/installers:alpine",
+      "entrypoint": "ash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Server Jar File",
+      "description": "The name of the server jarfile to run the server with.",
+      "env_variable": "SERVER_JARFILE",
+      "default_value": "server.jar",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/",
+      "field_type": "text"
+    }
+  ]
+}
+```
+
+When the egg copies its configuration from another egg (`config_from`), `config.files`, `config.startup` and
+`config.stop` come from that parent egg if this egg's own value is `null`, and `file_denylist` always comes from the
+parent egg. When the egg copies its install script from another egg (`copy_script_from`), each of the three
+`scripts.installation` values comes from that parent egg if this egg's own value is `null`. `config.files` and `config.startup` are JSON
+strings. Each variable has every column except `id`, `egg_id`, `created_at` and `updated_at`, plus
+`"field_type": "text"`.
+
+## Create an egg
+
+`POST /api/application/eggs`
+
+**Admin permission:** `eggs.create`
+
+Creates an egg. The Panel generates its UUID and sets its author to the `APP_SERVICE_AUTHOR` value from the Panel's
+`.env` file (default `unknown@unknown.com`). Logs the activity event `admin:eggs:create`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `nest_id` | integer | Yes | ID of an existing nest. |
+| `name` | string | Yes | Up to 191 characters. |
+| `description` | string | No | Can be `null`. |
+| `features` | array | No | Stored, but not returned by the egg object. |
+| `docker_images` | array or object | Yes | At least one entry. Every value must be a string. |
+| `file_denylist` | array of strings | No | Can be `null`. |
+| `config_files` | string | Yes | A JSON-encoded string, for example `"{}"`. Cannot be `null`. |
+| `config_startup` | string | Yes | A JSON-encoded string. Cannot be `null`. |
+| `config_stop` | string | Yes | Up to 191 characters. Cannot be `null`. |
+| `startup` | string | Yes | Startup command. |
+| `script_container` | string | No | Install script container image. |
+| `script_entry` | string | No | Install script entrypoint. |
+| `script_install` | string | No | Install script. |
+
+`config_files`, `config_startup` and `config_stop` are marked nullable in the rules, but they are also required, and
+Laravel's `required` rule rejects `null`. Other egg columns (`config_from`, `copy_script_from`,
+`script_is_privileged`, `force_outgoing_ip`, `update_url`) cannot be set through this endpoint.
+
+### Response
+
+`200 OK` (not `201`)
+
+The new [egg object](#the-egg-object), reloaded from the database.
+
+## Update an egg
+
+`PATCH /api/application/eggs/{egg}`
+
+**Admin permission:** `eggs.update`
+
+Updates an egg. Only the fields you send are changed. Logs the activity event `admin:eggs:update`, with the raw
+request body in the `new_data` property.
+
+### Request body
+
+JSON body. All fields are optional.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `nest_id` | integer | ID of an existing nest. Moves the egg to that nest. |
+| `name` | string | Up to 191 characters. |
+| `description` | string | Can be `null`. |
+| `features` | array | |
+| `docker_images` | array or object | At least one entry. Every value must be a string. |
+| `file_denylist` | array of strings | Can be `null`. |
+| `config_files` | string | A JSON-encoded string. Can be `null`. |
+| `config_startup` | string | A JSON-encoded string. Can be `null`. |
+| `config_stop` | string | Up to 191 characters. Can be `null`. |
+| `startup` | string | Startup command. |
+| `script_container` | string | Install script container image. |
+| `script_entry` | string | Install script entrypoint. |
+| `script_install` | string | Install script. |
+
+### Response
+
+`200 OK`
+
+The updated [egg object](#the-egg-object).
+
+## Delete an egg
+
+`DELETE /api/application/eggs/{egg}`
+
+**Admin permission:** `eggs.delete`
+
+Deletes an egg and, through the database, its variables. Logs the activity event `admin:eggs:delete`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | A server still uses the egg. `detail` is `An Egg with active servers attached to it cannot be deleted from the Panel.` |
+
+## Create an egg variable
+
+`POST /api/application/eggs/{egg}/variables`
+
+**Admin permission:** `eggs.create`
+
+Adds a variable to an egg. Logs the activity event `admin:eggs:variables:create`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1 to 191 characters. |
+| `description` | string | No | Can be `null`. Stored as an empty string when missing or `null`. |
+| `env_variable` | string | Yes | 1 to 191 letters, digits or underscores. Cannot be a reserved name (see below). |
+| `default_value` | string | Yes | Must be present, but can be `null` or empty. `null` is stored as an empty string. |
+| `user_viewable` | boolean | Yes | Whether users can see the variable. |
+| `user_editable` | boolean | Yes | Whether users can change the variable. |
+| `rules` | string | Yes | Laravel validation rules, for example `required\|string\|max:20`. Each rule must exist. |
+
+Reserved names: `SERVER_MEMORY`, `SERVER_IP`, `SERVER_PORT`, `ENV`, `HOME`, `USER`, `STARTUP`, `SERVER_UUID` and
+`UUID`. An exact match fails validation with `422`. A match in another letter case (for example `server_memory`)
+fails with `400`.
+
+`env_variable` must be unique within the egg (exact match).
+
+### Response
+
+`200 OK` (not `201`)
+
+An [egg variable object](#the-egg-variable-object).
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `env_variable` is a reserved name in a different letter case. `detail` is `Cannot use the protected name <name> for this environment variable.` |
+| `400` | Another variable of this egg already uses `env_variable`. `detail` is `The environment variable <name> must be unique to this Egg.` |
+| `400` | A rule in `rules` does not exist. `detail` is `The validation rule "<rule>" is not a valid rule for this application.` |
+
+## Update egg variables
+
+`PATCH /api/application/eggs/{egg}/variables`
+
+**Admin permission:** `eggs.update`
+
+Updates several variables of an egg in one transaction. Logs the activity event `admin:eggs:variables:update`.
+
+### Request body
+
+A JSON **array**, with one object per variable to update.
+
+```json
+[
+  {
+    "id": 12,
+    "name": "Server Jar File",
+    "description": "The name of the server jarfile to run the server with.",
+    "env_variable": "SERVER_JARFILE",
+    "default_value": "server.jar",
+    "user_viewable": true,
+    "user_editable": true,
+    "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | integer | Yes | Variable ID. IDs that don't belong to `{egg}` are skipped without an error. |
+| `name` | string | No | 1 to 191 characters. |
+| `description` | string | No | Can be `null`, which is stored as an empty string. |
+| `env_variable` | string | No | 1 to 191 letters, digits or underscores, not a reserved name, and not used by another variable of this egg. |
+| `default_value` | string | No | Can be `null`, which is stored as an empty string. |
+| `user_viewable` | boolean | No | Whether users can see the variable. |
+| `user_editable` | boolean | No | Whether users can change the variable. |
+| `rules` | string | No | Laravel validation rules. Each rule must exist. Rules may be separated by `;;` instead of `\|` for the existence check. |
+
+Only the fields you send are changed. Fields you leave out keep their current values.
+
+### Response
+
+`200 OK`
+
+A list of **all** of the egg's variables after the update, as [egg variable objects](#the-egg-variable-object).
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "egg_variable",
+      "attributes": {
+        "id": 12,
+        "egg_id": 3,
+        "name": "Server Jar File",
+        "...": "see the egg variable object"
+      }
+    }
+  ]
+}
+```
+
+### Errors
+
+If any entry fails, no variable is changed.
+
+| Status | When |
+|--------|------|
+| `400` | `env_variable` is a reserved name in a different letter case. `detail` is `The environment variable <name> is protected and cannot be assigned to a variable.` |
+| `400` | Another variable of this egg already uses `env_variable`. `detail` is `The environment variable <name> must be unique to this Egg.` |
+| `400` | A rule in `rules` does not exist. `detail` is `The validation rule "<rule>" is not a valid rule for this application.` |
+
+## Delete an egg variable
+
+`DELETE /api/application/eggs/{egg}/variables/{eggVariable}`
+
+**Admin permission:** `eggs.delete`
+
+Deletes one variable from an egg. A variable that belongs to a different egg returns `404`. Logs the activity event
+`admin:eggs:variables:delete`.
+
+### Response
+
+`204 No Content`

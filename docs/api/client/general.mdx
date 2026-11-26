@@ -1,0 +1,281 @@
+---
+sidebar_position: 1
+title: General
+---
+
+# General
+
+These endpoints sit at the root of the Client API. They list the servers you can access, the subuser permissions
+the Panel knows about, and the custom links an administrator has published.
+
+Every endpoint under `/api/client` returns `403` with an empty `detail` if your account is suspended
+(its `state` is `suspended`).
+
+## List servers
+
+`GET /api/client`
+
+**Subuser permission:** None
+
+Returns a paginated list of servers. By default this is every server you own or are a subuser on. Use `type` to
+change which servers are listed.
+
+```bash
+curl "https://panel.example.com/api/client?type=owner&filter[*]=survival" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `type` | string | No | Which servers to list. See the table below. Any other value, or no value, uses the default. |
+| `per_page` | integer | No | Results per page. Defaults to `50`. Values above `100` are reduced to `100`. There is no minimum check and no `400` for an out-of-range value. |
+| `page` | integer | No | Page number. See [pagination](/docs/api/introduction#pagination). |
+| `filter[uuid]` | string | No | Partial, case-insensitive match on the server UUID. |
+| `filter[name]` | string | No | Partial, case-insensitive match on the server name. |
+| `filter[description]` | string | No | Partial, case-insensitive match on the server description. |
+| `filter[external_id]` | string | No | Partial, case-insensitive match on the server's external ID. |
+| `filter[*]` | string | No | Multi-field search. See below. |
+| `include` | string | No | Comma-separated extra includes: `egg`, `subusers`. See [includes](/docs/api/introduction#including-related-resources). |
+
+Values of `type`:
+
+| Value | Servers returned |
+|-------|------------------|
+| (default) | Servers you own, plus servers you are a subuser on. |
+| `owner` | Only servers you own. |
+| `admin` | Root administrators only: every server you do **not** own and are not a subuser on. |
+| `admin-all` | Root administrators only: every server on the Panel. |
+
+If you are not a root administrator, `admin` and `admin-all` do not fail. They return an empty list.
+
+`filter[*]` searches several fields at once:
+
+- If the value looks like an IPv4 address, optionally with a port (`10.0.0.5` or `10.0.0.5:255`), it matches
+  servers with an allocation on that IP. When a port is given, the allocation port must start with those digits.
+- If the value is a port prefixed with a colon (`:25565`), it matches servers with an allocation whose port starts
+  with those digits.
+- Otherwise it matches a server whose UUID equals the value or starts with it, whose short UUID equals the value,
+  whose external ID equals the value, or whose name contains the value (case-insensitive).
+
+Any other `filter[...]` key is rejected with `400`. Sorting is not supported on this endpoint. See
+[filtering and sorting](/docs/api/introduction#filtering-and-sorting).
+
+### Includes
+
+`allocations` and `variables` are always included. `egg` and `subusers` are available on request.
+
+| Include | Content |
+|---------|---------|
+| `allocations` | Always included. If you lack the `allocation.read` subuser permission, only the primary allocation is returned, with `notes` set to `null`. |
+| `variables` | Always included. The egg variables marked user-viewable. If you lack `startup.read`, this is a `null_resource` (`{"object": "null_resource", "attributes": null}`). |
+| `egg` | The server's egg (`object: "egg"`). |
+| `subusers` | The server's subusers (`object: "server_subuser"`). If you lack `user.read`, this is a `null_resource`. |
+
+Server owners and root administrators have every subuser permission.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server",
+      "attributes": {
+        "server_owner": true,
+        "identifier": "1a7ce997",
+        "__deprecated_uuid_short": "1a7ce997",
+        "server_identifier": "1a7ce997",
+        "internal_id": 12,
+        "group_id": null,
+        "uuid": "1a7ce997-259b-452e-8b4e-cecc464142ca",
+        "name": "Survival",
+        "node": "Node 1",
+        "is_node_under_maintenance": false,
+        "sftp_details": {
+          "ip": "node1.example.com",
+          "port": 2022
+        },
+        "description": "",
+        "limits": {
+          "memory": 4096,
+          "swap": 0,
+          "disk": 20480,
+          "io": 500,
+          "cpu": 200,
+          "threads": null,
+          "oom_killer": false
+        },
+        "invocation": "java -Xms128M -Xmx4096M -jar server.jar",
+        "docker_image": "ghcr.io/pterodactyl/yolks:java_21",
+        "egg_features": ["eula", "java_version", "pid_limit"],
+        "billing_product_id": null,
+        "feature_limits": {
+          "databases": 2,
+          "allocations": 1,
+          "backups": 3,
+          "subusers": 5
+        },
+        "status": null,
+        "renewal_date": null,
+        "is_transferring": false,
+        "relationships": {
+          "allocations": {
+            "object": "list",
+            "data": [
+              {
+                "object": "allocation",
+                "attributes": {
+                  "id": 31,
+                  "ip": "10.0.0.5",
+                  "ip_alias": null,
+                  "port": 25565,
+                  "notes": null,
+                  "is_default": true
+                }
+              }
+            ]
+          },
+          "variables": {
+            "object": "list",
+            "data": [
+              {
+                "object": "egg_variable",
+                "attributes": {
+                  "name": "Server Jar File",
+                  "description": "The name of the server jarfile to run the server with.",
+                  "env_variable": "SERVER_JARFILE",
+                  "default_value": "server.jar",
+                  "server_value": "server.jar",
+                  "is_editable": true,
+                  "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 50,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+Attribute notes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `server_owner` | `true` if you own the server. `false` if you see it as a subuser or administrator. |
+| `identifier`, `__deprecated_uuid_short`, `server_identifier` | All three hold the 8 character short UUID. |
+| `internal_id` | The server's numeric database ID. |
+| `group_id` | The ID of the [server group](/docs/api/client/server-groups) the server is in, or `null`. |
+| `node` | The node's name. |
+| `sftp_details.ip` | The node's SFTP alias if set, otherwise its FQDN. |
+| `invocation` | The server's startup command if set, otherwise the egg's default startup command. |
+| `egg_features` | The egg's features, inherited from the egg it copies its configuration from when it has none of its own. May be `null`. |
+| `status` | `installing`, `install_failed`, `reinstall_failed`, `suspended`, `restoring_backup`, or `null` when none applies. |
+| `renewal_date` | Billing renewal date as an ISO 8601 string with microseconds (`2026-12-01T00:00:00.000000Z`), or `null`. |
+| `is_transferring` | `true` while the server is being transferred to another node. |
+
+## List subuser permissions
+
+`GET /api/client/permissions`
+
+**Subuser permission:** None
+
+Returns every subuser permission the Panel supports, grouped by category. Each permission's full key is
+`<group>.<key>`, for example `control.start`.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "system_permissions",
+  "attributes": {
+    "permissions": {
+      "websocket": {
+        "description": "Allows the user to connect to the server websocket, giving them access to view console output and realtime server stats.",
+        "keys": {
+          "connect": "Allows a user to connect to the websocket instance for a server to stream the console."
+        }
+      },
+      "control": {
+        "description": "Permissions that control a user's ability to control the power state of a server, or send commands.",
+        "keys": {
+          "console": "Allows a user to send commands to the server instance via the console.",
+          "start": "Allows a user to start the server if it is stopped.",
+          "stop": "Allows a user to stop a server if it is running.",
+          "restart": "Allows a user to perform a server restart. This allows them to start the server if it is offline, but not put the server in a completely stopped state."
+        }
+      }
+    }
+  }
+}
+```
+
+The example is shortened. The full response contains these groups and keys, in this order:
+
+| Group | Keys |
+|-------|------|
+| `websocket` | `connect` |
+| `control` | `console`, `start`, `stop`, `restart` |
+| `user` | `create`, `read`, `update`, `delete` |
+| `file` | `create`, `read`, `read-content`, `update`, `delete`, `archive`, `sftp` |
+| `backup` | `create`, `read`, `delete`, `download`, `restore` |
+| `allocation` | `read`, `create`, `update`, `delete` |
+| `startup` | `read`, `update`, `docker-image` |
+| `database` | `create`, `read`, `update`, `delete`, `view_password` |
+| `schedule` | `create`, `read`, `update`, `delete` |
+| `settings` | `rename`, `reinstall` |
+| `activity` | `read` |
+| `billing` | `read`, `renew`, `update` |
+
+Every group has a `description` string and every key maps to a description string.
+
+## List custom links
+
+`GET /api/client/links`
+
+**Subuser permission:** None
+
+Returns every custom link an administrator has marked as visible. The list is not paginated.
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "custom_links",
+      "attributes": {
+        "id": 1,
+        "name": "Discord",
+        "url": "https://discord.gg/example",
+        "created_at": "2026-01-14T09:12:44+00:00",
+        "updated_at": "2026-01-14T09:12:44+00:00"
+      }
+    }
+  ]
+}
+```
+
+`created_at` and `updated_at` are ISO 8601 strings.

@@ -1,0 +1,700 @@
+---
+sidebar_position: 9
+title: Servers
+---
+
+# Servers
+
+These endpoints list, create, update and delete servers, and run administrative actions on them (suspension,
+reinstall, transfer, power). `{server}` is the server's numeric `id`. The Client API's UUID and short identifiers
+are not accepted here.
+
+## The server object
+
+`object` is `server`.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Numeric server ID. |
+| `external_id` | string or null | ID of the server in an external system. |
+| `uuid` | string | Full server UUID. |
+| `identifier` | string | First 8 characters of the UUID (the "short UUID"). |
+| `name` | string | Server name. |
+| `description` | string | Description. Empty string when none was set. |
+| `status` | string or null | `null` for an installed server in a normal state. Otherwise one of `installing`, `install_failed`, `reinstall_failed`, `suspended`, `restoring_backup`. |
+| `limits.cpu` | integer | CPU limit, in percent. |
+| `limits.disk` | integer | Disk limit in MiB. |
+| `limits.io` | integer | Block IO weight (10 to 1000). |
+| `limits.memory` | integer | Memory limit in MiB. |
+| `limits.oom_killer` | boolean | Whether the OOM killer is enabled. |
+| `limits.swap` | integer | Swap in MiB. |
+| `limits.threads` | string or null | CPU pinning, for example `0-1,3`. |
+| `feature_limits.allocations` | integer or null | Number of allocations the user may add. |
+| `feature_limits.backups` | integer or null | Number of backups allowed. |
+| `feature_limits.databases` | integer or null | Number of databases allowed. |
+| `feature_limits.subusers` | integer or null | Number of subusers allowed. |
+| `owner_id` | integer | ID of the owning user. |
+| `node_id` | integer | ID of the node. |
+| `allocation_id` | integer | ID of the default (primary) allocation. |
+| `nest_id` | integer | ID of the nest. |
+| `egg_id` | integer | ID of the egg. |
+| `container.startup` | string or null | Startup command. |
+| `container.image` | string | Docker image. |
+| `container.environment` | object | The environment sent to Wings: every egg variable (the server's value, or the variable's default when the server has no stored value), plus `STARTUP`, `P_SERVER_UUID` and `P_SERVER_ALLOCATION_LIMIT`. |
+| `billing_product_id` | integer or null | ID of the linked billing product. |
+| `renewal_date` | string or null | ISO 8601 timestamp of the next billing renewal. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `updated_at` | string | ISO 8601 timestamp. |
+
+### Includes
+
+See [includes](/docs/api/introduction#including-related-resources).
+
+| Include | Returns |
+|---------|---------|
+| `allocations` | List of `allocation` objects assigned to the server. |
+| `user` | The owner, as a `user` object. See [Users](/docs/api/application/users). |
+| `subusers` | List of `server_subuser` objects. |
+| `nest` | The `nest` object. |
+| `egg` | The `egg` object. |
+| `variables` | List of `server_variable` objects: each egg variable's fields plus `server_value` (the server's stored value, or `null`). |
+| `node` | The `node` object. |
+| `databases` | List of `server_database` objects. See [Server Databases](/docs/api/application/server-databases). |
+| `product` | The linked billing `product`, or a `null_resource` if there is none. |
+
+## List servers
+
+`GET /api/application/servers`
+
+**Admin permission:** `servers.read`
+
+Returns a paginated list of all servers.
+
+```bash
+curl "https://panel.example.com/api/application/servers?per_page=50&include=user" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | 1 to 100. Defaults to `20`. See [pagination](/docs/api/introduction#pagination). |
+| `page` | integer | No | Page number. |
+| `filter[id]` | string | No | Partial match on the server ID. |
+| `filter[uuid]` | string | No | Partial match on the UUID. |
+| `filter[uuidShort]` | string | No | Partial match on the short UUID. |
+| `filter[name]` | string | No | Partial match on the name. |
+| `filter[owner_id]` | string | No | Partial match on the owner ID. |
+| `filter[node_id]` | string | No | Partial match on the node ID. |
+| `filter[external_id]` | string | No | Partial match on the external ID. |
+| `sort` | string | No | `id`, `uuid`, `uuidShort`, `name`, `owner_id`, `node_id` or `status`, optionally prefixed with `-`. See [filtering and sorting](/docs/api/introduction#filtering-and-sorting). |
+| `search` | string | No | Validated (up to 100 characters) but not used for anything. |
+| `include` | string | No | See [includes](#includes). |
+
+:::info
+All filters on this endpoint are **partial** (`LIKE %value%`) matches, including the numeric ones.
+`filter[owner_id]=1` also matches owners `10`, `21`, `100` and so on. To look up one server by ID, use
+[Get a server](#get-a-server). To look one up by external ID, use [Get a server by external ID](#get-a-server-by-external-id).
+:::
+
+### Response
+
+`200 OK`
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "server",
+      "attributes": {
+        "id": 5,
+        "external_id": null,
+        "uuid": "1a7ce997-259b-452e-8b4e-cecc464142ca",
+        "identifier": "1a7ce997",
+        "name": "Survival",
+        "description": "",
+        "status": null,
+        "limits": {
+          "cpu": 200,
+          "disk": 10240,
+          "io": 500,
+          "memory": 4096,
+          "oom_killer": false,
+          "swap": 0,
+          "threads": null
+        },
+        "feature_limits": {
+          "allocations": 2,
+          "backups": 3,
+          "databases": 1,
+          "subusers": 0
+        },
+        "owner_id": 1,
+        "node_id": 1,
+        "allocation_id": 14,
+        "nest_id": 1,
+        "egg_id": 3,
+        "container": {
+          "startup": "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
+          "image": "ghcr.io/pterodactyl/yolks:java_21",
+          "environment": {
+            "SERVER_JARFILE": "server.jar",
+            "MINECRAFT_VERSION": "latest",
+            "STARTUP": "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
+            "P_SERVER_UUID": "1a7ce997-259b-452e-8b4e-cecc464142ca",
+            "P_SERVER_ALLOCATION_LIMIT": 2
+          }
+        },
+        "billing_product_id": null,
+        "renewal_date": null,
+        "created_at": "2026-11-26T10:15:00+00:00",
+        "updated_at": "2026-11-26T10:15:00+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 20,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": {}
+    }
+  }
+}
+```
+
+## Get a server
+
+`GET /api/application/servers/{server}`
+
+**Admin permission:** `servers.read`
+
+Returns a single server.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | See [includes](#includes). |
+
+### Response
+
+`200 OK`. The body is a single `server` object, as in [List servers](#list-servers).
+
+## Get a server by external ID
+
+`GET /api/application/servers/external/{external_id}`
+
+**Admin permission:** `servers.read`
+
+Returns the server whose `external_id` exactly matches `{external_id}`. Returns `404` if there is no match.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include` | string | No | See [includes](#includes). |
+
+### Response
+
+`200 OK`. The body is a single `server` object.
+
+## List a server's activity
+
+`GET /api/application/servers/{server}/activity`
+
+**Admin permission:** `activity.read`
+
+Returns a paginated list of activity log entries where the server is a subject. Entries with the event
+`server:file.upload` are never returned. The entries use the `activity_log` format described on
+[Users](/docs/api/application/users#list-a-users-activity).
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per_page` | integer | No | Defaults to `25`. Values above `100` are reduced to `100`. Not rejected with `400` when out of range. |
+| `page` | integer | No | Page number. |
+| `filter[event]` | string | No | Partial match on the event name. |
+| `filter[ip]` | string | No | Partial match on the IP address. |
+| `sort` | string | No | `timestamp` or `event`, optionally prefixed with `-`. No default sort is applied. |
+| `include` | string | No | `actor`. |
+
+### Response
+
+`200 OK`. A paginated list of `activity_log` objects.
+
+## Create a server
+
+`POST /api/application/servers`
+
+**Admin permission:** `servers.create`
+
+Creates a server on a node and asks Wings to create it. The server starts with the status `installing`.
+
+```bash
+curl -X POST "https://panel.example.com/api/application/servers" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Survival",
+    "owner_id": 1,
+    "node_id": 1,
+    "egg_id": 3,
+    "image": "ghcr.io/pterodactyl/yolks:java_21",
+    "startup": "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
+    "environment": { "SERVER_JARFILE": "server.jar", "MINECRAFT_VERSION": "latest" },
+    "skip_scripts": false,
+    "limits": { "memory": 4096, "swap": 0, "disk": 10240, "io": 500, "cpu": 200, "oom_killer": false },
+    "feature_limits": { "databases": 1, "backups": 3, "allocations": 2, "subusers": 0 },
+    "allocation": { "default": 14, "additional": [15] }
+  }'
+```
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1 to 191 characters. |
+| `owner_id` | integer | Yes | ID of an existing user. |
+| `node_id` | integer | Yes | ID of an existing node. Wings on this node is asked to create the server. |
+| `egg_id` | integer | Yes | ID of an existing egg. The server's `nest_id` is taken from the egg. |
+| `image` | string | Yes | Docker image, up to 191 characters. Not checked against the egg's image list. |
+| `startup` | string or null | No | Startup command. If omitted it is stored as `null`; it is **not** copied from the egg. |
+| `environment` | object | Yes | Egg variable values keyed by environment variable name. Must be present, but can be `{}`. See [Environment variables](#environment-variables). |
+| `skip_scripts` | boolean | Yes | Must be present. `true` skips the egg's install script. |
+| `description` | string or null | No | Stored as an empty string when omitted or `null`. |
+| `external_id` | string or null | No | 1 to 191 characters. Must be unique among servers. |
+| `limits` | object | Yes | Resource limits. |
+| `limits.memory` | number | Yes | MiB. Minimum `0`. |
+| `limits.swap` | number | Yes | MiB. Minimum `-1`. |
+| `limits.disk` | number | Yes | MiB. Minimum `0`. |
+| `limits.io` | number | Yes | Block IO weight, `10` to `1000`. |
+| `limits.cpu` | number | Yes | Percent. Minimum `0`. |
+| `limits.threads` | string or null | No | CPU pinning. Only digits, `-` and `,` are allowed. |
+| `limits.oom_killer` | boolean | Yes | Enable the OOM killer. |
+| `feature_limits` | object | Yes | Feature limits. |
+| `feature_limits.databases` | integer or null | Yes | Must be present. Minimum `0`. `null` is stored as `0`. |
+| `feature_limits.backups` | integer or null | Yes | Must be present. Minimum `0`. `null` is stored as `0`. |
+| `feature_limits.allocations` | integer or null | No | Minimum `0`. Defaults to `0`. |
+| `feature_limits.subusers` | integer or null | No | Minimum `-1`. Defaults to `0`. |
+| `allocation` | object | Yes | Allocations to assign. |
+| `allocation.default` | integer | Yes | ID of an allocation on `node_id` that is not assigned to any server. Becomes the primary allocation. |
+| `allocation.additional` | array of integers | No | IDs of more allocations to assign. Each must be on `node_id`, not assigned to any server, different from `allocation.default`, and listed only once. |
+| `start_on_completion` | boolean | No | Ask Wings to start the server once installation finishes. Defaults to `false`. |
+
+Fields not listed here are ignored. In particular:
+
+- There is no automatic deployment. You must choose the allocation yourself with `allocation.default`.
+- `billing_product_id` and `renewal_date` cannot be set on creation (use [Update a server](#update-a-server)).
+
+An allocation that does not exist, is on another node, or already belongs to a server fails validation with `422`
+(`meta.rule` is `exists`, `meta.source_field` is `allocation.default` or `allocation.additional.<index>`).
+
+### Environment variables
+
+The Panel validates `environment` against **every** variable of the egg, including variables that are not user
+viewable or editable:
+
+- For each egg variable, the value is `environment[<env_variable>]`, or the variable's default value if you did not
+  send it. That value is checked against the variable's validation `rules` and is the value stored for the server.
+  A failure returns `422` with `source_field` set to `environment.<env_variable>`.
+- Sending a variable with the value `null` stores an empty string.
+- Keys that are not variables of the egg are ignored.
+
+### What happens
+
+1. The server, its allocations and its variables are saved in one database transaction.
+2. Wings on the node is asked to create the server. If Wings cannot be reached or returns an error, the server is
+   deleted again (forced deletion) and the Wings error is returned (see the `DaemonConnectionException` row in
+   [errors](/docs/api/introduction#errors)).
+3. Activity event `admin:servers:create` is logged.
+
+### Response
+
+`200 OK` (not `201`). The body is the created `server` object.
+
+## Create a server from a preset
+
+`POST /api/application/servers/preset`
+
+**Admin permission:** `servers.create`
+
+Creates a server from a [server preset](/docs/api/application/server-presets), on the first free allocation of the
+given node. The new server is owned by **the account making the request**.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `preset_id` | integer | Yes | ID of an existing server preset. |
+| `node_id` | integer | Yes | ID of an existing node. |
+
+### How the server is built
+
+| Server field | Value |
+|--------------|-------|
+| `owner_id` | The calling user. |
+| `name` | The preset name followed by ` server`, for example `Starter server`. |
+| `node_id` | `node_id` from the request. |
+| `allocation_id` | The first allocation on that node with no server assigned. |
+| `cpu`, `memory`, `disk` | From the preset. |
+| `swap` | `0`. |
+| `io` | `500`. |
+| `oom_killer` | `false`. |
+| `threads` | `null`. |
+| Feature limits | All `0`. |
+| `egg_id` | The preset's `egg_id`, or `1` if the preset has no egg. |
+| `nest_id` | The nest of that egg. The preset's own `nest_id` is not used. |
+| `image` | The first Docker image of the egg. |
+| `startup` | The egg's startup command. |
+| `environment` | Every egg variable with its default value. |
+| `skip_scripts` | `false`. |
+
+The server is then created the same way as [Create a server](#create-a-server), including the Wings call and the
+clean-up on failure.
+
+Logs the activity event `admin:servers:create` with a `server_preset` property.
+
+### Response
+
+`200 OK`. The body is the created `server` object.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `There are no free allocations available on the selected node.` |
+| `404` | The preset has no egg and egg `1` does not exist. |
+
+## Update a server
+
+`PATCH /api/application/servers/{server}`
+
+**Admin permission:** `servers.update`
+
+Updates a server's details, limits, feature limits, billing fields and allocations.
+
+Some fields are required by validation (see the table). Every optional field that you leave out keeps its current
+value. To clear a nullable field, send it as `null`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1 to 191 characters. |
+| `owner_id` | integer | Yes | ID of an existing user. |
+| `description` | string or null | No | Description. `null` is stored as an empty string. |
+| `external_id` | string or null | No | 1 to 191 characters. Must be unique among servers (this server's current value is allowed). |
+| `limits` | object | Yes | Must contain the fields below. |
+| `limits.memory` | number | Yes | MiB. Minimum `0`. |
+| `limits.swap` | number | Yes | MiB. Minimum `-1`. |
+| `limits.disk` | number | Yes | MiB. Minimum `0`. |
+| `limits.io` | number | Yes | `10` to `1000`. |
+| `limits.cpu` | number | Yes | Minimum `0`. |
+| `limits.threads` | string or null | No | Only digits, `-` and `,`. |
+| `limits.oom_killer` | boolean | No | Enable the OOM killer. |
+| `feature_limits` | object | Yes | Feature limits. |
+| `feature_limits.databases` | integer or null | Yes | Must be present. Minimum `0`. |
+| `feature_limits.backups` | integer or null | Yes | Must be present. Minimum `0`. `null` is stored as `0`. |
+| `feature_limits.allocations` | integer or null | No | Minimum `0`. |
+| `feature_limits.subusers` | integer or null | No | Minimum `-1`. |
+| `renewal_date` | string or null | No | Any date string Laravel can parse. |
+| `billing_product_id` | integer or null | No | ID of an existing billing product. If the value is unchanged, it is accepted even when that product has since been deleted. |
+| `allocation_id` | integer | No | ID of an existing allocation to make primary. It must already be assigned to this server, or be added by `add_allocations` in the same request. |
+| `add_allocations` | array of integers | No | Allocation IDs to assign. Only allocations on the server's node with no server assigned are added; others are skipped without an error. |
+| `remove_allocations` | array of integers | No | Allocation IDs to unassign. Only allocations on the server's node that belong to this server are removed. IDs that also appear in `add_allocations` are not removed. |
+
+If `remove_allocations` contains the primary allocation (the `allocation_id` sent in the request, or the current
+primary allocation if none was sent; compared strictly, so send integers), the primary allocation is switched to the first allocation that `add_allocations` actually added. If nothing was added, the
+request fails with `400`. Allocation notes are cleared on added and removed allocations.
+
+### What happens
+
+1. Allocations and the sent limits, feature limits, `allocation_id` and `renewal_date` are saved. Wings is then asked
+   to sync the server. If Wings cannot be reached, the error is logged and the request still succeeds (Wings fetches the new
+   configuration the next time the server boots).
+2. The sent `external_id`, `owner_id`, `name`, `description`, `renewal_date` and `billing_product_id` are saved. If the owner
+   changed, Wings is asked to revoke the previous owner's websocket tokens for this server. Failures here are
+   ignored.
+3. Activity event `admin:servers:update` is logged.
+
+### Response
+
+`200 OK`. The body is the updated `server` object.
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `The requested default allocation is not currently assigned to this server.` |
+| `400` | `You are attempting to delete the default allocation for this server but there is no fallback allocation to use.` |
+
+## Update a server's startup configuration
+
+`PATCH /api/application/servers/{server}/startup`
+
+**Admin permission:** `servers.update`
+
+Changes the egg, Docker image, startup command, install script setting and variable values.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `egg_id` | integer | Yes | ID of an existing egg. If it differs from the current egg, the server's `egg_id` and `nest_id` are changed to the new egg and its nest. |
+| `image` | string | Yes | Docker image, up to 191 characters. |
+| `startup` | string or null | No | New startup command. `null` or omitted keeps the current command. |
+| `environment` | object | Yes | Must be present. Variable values keyed by environment variable name. `{}` leaves all variables unchanged. |
+| `skip_scripts` | boolean | Yes | Must be present. |
+
+When `environment` is not empty, it is validated against every variable of the egg given in `egg_id`, in the same
+way as [server creation](#environment-variables), and the values are saved. A variable you leave out keeps its
+current value. If the server has no value stored for it, or `egg_id` changes the egg, it gets the variable's default
+value. Sending a variable as `null` stores an empty string.
+
+Changing the egg does not reinstall the server. This endpoint does not contact Wings.
+
+Logs the activity event `admin:servers:startup`.
+
+### Response
+
+`200 OK`. The body is the updated `server` object.
+
+## Send a power action to several servers
+
+`POST /api/application/servers/bulk/power`
+
+**Admin permission:** `servers.update`
+
+Sends the same power action to several servers. Only servers whose `status` is `null` (installed and not suspended,
+installing, restoring or failed) are contacted. Other IDs in the list are skipped silently and are not counted in
+`total`.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | Yes | One of `start`, `stop`, `restart`, `kill`. |
+| `servers` | array of integers | Yes | At least one server ID. Each must be an existing server ID. |
+
+Each server's Wings is contacted in turn. A Wings error for one server does not stop the others; it is reported in
+`failed`. Logs the activity event `admin:servers:bulk-power`.
+
+### Response
+
+`200 OK`. This is a plain JSON object, not a resource envelope.
+
+```json
+{
+  "action": "restart",
+  "total": 3,
+  "failed": [
+    {
+      "server": 7,
+      "message": "Could not establish a connection to the machine running this server. Please try again."
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `action` | The action that was sent. |
+| `total` | Number of servers the action was sent to (after skipping servers with a non-null `status`). |
+| `failed` | One entry per server where Wings returned an error, with the server ID and the error message. |
+
+## Toggle install status
+
+`POST /api/application/servers/{server}/toggle`
+
+**Admin permission:** `servers.update`
+
+Marks a server as installed or as installing, without contacting Wings. There is no request body.
+
+- If `status` is `installing`, it becomes `null` (installed).
+- If `status` is `null`, it becomes `installing`.
+- Any other status is rejected, so the toggle never clears a suspension or another state.
+
+Logs the activity event `admin:servers:toggle`.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `The server failed to install, so we cannot change the state.` (status is `install_failed`) |
+| `400` | `The installation status cannot be toggled while the server is <status>.` (status is `suspended`, `reinstall_failed` or `restoring_backup`) |
+
+## Suspend a server
+
+`POST /api/application/servers/{server}/suspend`
+
+**Admin permission:** `servers.update`
+
+Sets the server's status to `suspended` and asks Wings to sync the server. There is no request body. If the server is
+already suspended, nothing changes. If Wings cannot be reached, the status change is reverted and the Wings error
+is returned.
+
+Logs the activity event `admin:servers:suspend` (also when the server was already suspended).
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `409` | `Cannot toggle suspension status on a server that is currently being transferred.` |
+
+## Unsuspend a server
+
+`POST /api/application/servers/{server}/unsuspend`
+
+**Admin permission:** `servers.update`
+
+Sets the status of a suspended server to `null` and asks Wings to sync the server. There is no request body. If the
+server is not suspended, nothing changes. If Wings cannot be reached, the status change is reverted and the Wings
+error is returned.
+
+Logs the activity event `admin:servers:unsuspend` (also when nothing changed).
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `409` | `Cannot toggle suspension status on a server that is currently being transferred.` |
+
+## Reinstall a server
+
+`POST /api/application/servers/{server}/reinstall`
+
+**Admin permission:** `servers.update`
+
+Sets the status to `installing` and asks Wings to run the egg's install script again. There is no request body. The
+server's current state is not checked first. If Wings returns an error, the status change is rolled back and the
+Wings error is returned.
+
+Logs the activity event `admin:servers:reinstall`.
+
+### Response
+
+`204 No Content`
+
+## Transfer a server
+
+`POST /api/application/servers/{server}/transfer`
+
+**Admin permission:** `servers.update`
+
+Starts moving a server to another node. The Panel reserves the new allocations, records the transfer, and tells the
+server's current node to start sending the server to the new node. The transfer itself then runs between the two
+Wings instances.
+
+### Request body
+
+JSON body.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `node_id` | integer | Yes | ID of the target node. Must exist and differ from the current node. |
+| `allocation_id` | integer | Yes | ID of the new primary allocation. Must be on the target node and have no server assigned. |
+| `additional_allocations` | array of integers | No | IDs of additional allocations. All must be on the target node and have no server assigned. |
+
+The server must be installed, not restoring a backup and not already being transferred. Suspended servers can be
+transferred.
+
+The allocations are reserved and the transfer record is created before Wings is contacted. If the call to the
+current node fails, the reserved allocations are released, the transfer record is deleted, and the Wings error is
+returned. The server can then be transferred again.
+
+Logs the activity event `admin:servers:transfer`.
+
+### Response
+
+`200 OK`. A plain JSON object. `transfer` is the new transfer record.
+
+```json
+{
+  "message": "Server transfer has been initiated.",
+  "transfer": {
+    "id": 4,
+    "server_id": 5,
+    "successful": null,
+    "old_node": 1,
+    "new_node": 2,
+    "old_allocation": 14,
+    "new_allocation": 31,
+    "old_additional_allocations": [15],
+    "new_additional_allocations": [32],
+    "archived": false,
+    "created_at": "2026-11-26T10:15:00.000000Z",
+    "updated_at": "2026-11-26T10:15:00.000000Z"
+  }
+}
+```
+
+### Errors
+
+| Status | When |
+|--------|------|
+| `400` | `The server is already on this node.` |
+| `400` | `The requested allocation is not available on the target node.` |
+| `400` | `One or more of the additional allocations are not available on the target node.` |
+| `409` | The server is not installed, is restoring a backup, or already has a transfer in progress. |
+
+## Delete a server
+
+`POST /api/application/servers/{server}/delete`
+
+**Admin permission:** `servers.delete`
+
+Deletes a server. Note that this is a `POST` request, not `DELETE`.
+
+### Request body
+
+JSON body (optional).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `force` | boolean or null | No | Defaults to `false`. See below. |
+
+### What happens
+
+1. Wings is asked to delete the server. A `404` from Wings is always ignored. Any other Wings error stops the
+   deletion and is returned, unless `force` is `true`, in which case it is logged and deletion continues.
+2. Each of the server's databases is dropped from its database host. If dropping one fails, the deletion stops and
+   the error is returned, unless `force` is `true`, in which case the Panel only deletes its own record and leaves
+   the database on the host.
+3. Notes on the server's allocations are cleared and the server is deleted.
+4. Activity event `admin:servers:delete` is logged.
+
+Steps 2 and 3 run in one database transaction.
+
+### Response
+
+`204 No Content`
